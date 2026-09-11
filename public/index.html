@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>야구 첫걸음</title>
+    <style>
+      :root { font-family: system-ui, sans-serif; background: #f5f7fb; color: #172033; }
+      body { margin: 0; display: grid; min-height: 100vh; place-items: center; }
+      main { width: min(92vw, 620px); background: white; border-radius: 20px; box-shadow: 0 8px 30px #17203318; overflow: hidden; }
+      header { padding: 24px; background: #123b73; color: white; }
+      h1 { margin: 0 0 6px; font-size: 1.4rem; }
+      p { margin: 0; opacity: .9; }
+      #messages { padding: 20px; min-height: 260px; display: grid; gap: 12px; align-content: start; }
+      .message { max-width: 84%; padding: 12px 14px; border-radius: 14px; line-height: 1.5; }
+      .bot { background: #e8f0ff; }
+      .user { background: #123b73; color: white; justify-self: end; }
+      form { display: flex; gap: 8px; padding: 16px; border-top: 1px solid #e7eaf0; }
+      input { flex: 1; padding: 12px; border: 1px solid #cbd3df; border-radius: 10px; font: inherit; }
+      button { border: 0; border-radius: 10px; padding: 12px 16px; background: #e8501d; color: white; font: inherit; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header><h1>⚾ 야구 첫걸음</h1><p>처음 보는 야구, 편하게 물어보세요.</p></header>
+      <section id="messages" aria-live="polite">
+        <div class="message bot">안녕하세요! 야구 규칙이나 용어를 쉽게 설명해 드릴게요.</div>
+      </section>
+      <form id="chat-form"><input id="message" autocomplete="off" placeholder="예: 스트라이크가 뭐야?" required /><button>보내기</button></form>
+    </main>
+    <script>
+      const form = document.querySelector('#chat-form');
+      const input = document.querySelector('#message');
+      const messages = document.querySelector('#messages');
+      const add = (text, role) => { const el = document.createElement('div'); el.className = `message ${role}`; el.textContent = text; messages.append(el); };
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault(); const message = input.value.trim(); if (!message) return;
+        add(message, 'user'); input.value = ''; input.focus();
+        const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }) });
+        const data = await response.json(); add(data.reply || '잠시 후 다시 시도해 주세요.', 'bot');
+      });
+    </script>
+  </body>
+</html>
