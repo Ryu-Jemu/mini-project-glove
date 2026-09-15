@@ -1,6 +1,6 @@
 [project]
 name = "baseball"
-version = "0.1.0"
+version = "1.0.0"
 description = "입문자를 위한 KBO 야구 규칙 설명 에이전트 (Phase 1)"
 readme = "README.md"
 authors = [{ name = "류제무", email = "decemryu77@gmail.com" }]
