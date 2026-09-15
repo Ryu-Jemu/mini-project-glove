@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from datetime import date, timedelta
 from functools import lru_cache
@@ -156,6 +157,33 @@ def _team_info_text(team: dict[str, Any], standing: Any | None) -> str:
     return "\n".join(lines)
 
 
+
+def _roster_text(rows: list[dict[str, Any]], limit: int = 14) -> str:
+    """등번호·포지션·핵심 기록만. 입문자가 읽을 수 있는 만큼으로 줄인다."""
+    lines: list[str] = []
+    for row in rows[:limit]:
+        st = row.get("stats", {})
+        no = row.get("back_number")
+        head = f"{('#' + str(no)) if no is not None else '  '} {row['name']} ({row.get('position') or '-'})"
+        if row.get("player_type") == "PITCHER":
+            era, w, l, sv = st.get("era"), st.get("win"), st.get("lose"), st.get("save")
+            detail = f"{st.get('games') or 0}경기 {w or 0}승 {l or 0}패"
+            if sv:
+                detail += f" {sv}세이브"
+            if era is not None:
+                detail += f" 평균자책 {era}"
+        else:
+            avg, hr, rbi = st.get("avg"), st.get("hr"), st.get("rbi")
+            detail = f"{st.get('games') or 0}경기"
+            if avg is not None:
+                detail += f" 타율 {avg:.3f}"
+            detail += f" {hr or 0}홈런 {rbi or 0}타점"
+        lines.append(f"{head} — {detail}")
+    if len(rows) > limit:
+        lines.append(f"(이 밖에 {len(rows) - limit}명)")
+    return "\n".join(lines)
+
+
 # --- 공개 진입점 -------------------------------------------------------------
 
 def entries_for(question: str, route: Any, *, settings: Settings | None = None,
@@ -221,6 +249,34 @@ def entries_for(question: str, route: Any, *, settings: Settings | None = None,
                                     teams[0] if len(teams) == 1 else None),
                 as_of=as_of, source_label=kbo_naver.SOURCE_LABEL,
                 source_url=kbo_naver.SOURCE_URL, freshness=fresh,
+            ))
+
+    if "roster" in topics and teams:
+        from baseball import kbo_players
+
+        code = teams[0]
+        pitchers = kbo_players.roster(code, "PITCHER")
+        hitters = kbo_players.roster(code, "HITTER")
+        if pitchers or hitters:
+            wants_pitcher = bool(re.search(r"투수|선발|불펜|마무리", question))
+            wants_hitter = bool(re.search(r"타자|타선|야수|포수|내야|외야", question))
+            if wants_pitcher and not wants_hitter:
+                what, total = "투수", len(pitchers)
+                body = _roster_text(pitchers)
+            elif wants_hitter and not wants_pitcher:
+                what, total = "타자", len(hitters)
+                body = _roster_text(hitters)
+            else:
+                # 한쪽만 나오면 명단을 물은 뜻이 아니다. 양쪽을 나눠서 보여준다.
+                what, total = "선수", len(pitchers) + len(hitters)
+                body = (f"[투수 {len(pitchers)}명]\n{_roster_text(pitchers, 8)}\n\n"
+                        f"[타자 {len(hitters)}명]\n{_roster_text(hitters, 8)}")
+            entries.append(KboEntry(
+                kind="roster",
+                label=f"{codes[code]['full']} {what} 명단 ({total}명, 이번 시즌 출전 기준)",
+                text=body, as_of=kbo_players.captured_at(),
+                source_label="네이버 스포츠", source_url=kbo_naver.SOURCE_URL,
+                freshness="static",
             ))
 
     if "team_info" in topics and teams:

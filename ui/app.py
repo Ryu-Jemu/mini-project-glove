@@ -5,6 +5,7 @@ import uuid
 
 import streamlit as st
 
+import clubs
 import gate
 import theme
 from backend import MODE, document_url, readyz, reset_session, stream_answer
@@ -91,10 +92,16 @@ with st.sidebar:
         st.rerun()
 
     st.caption(
-        "비공식 개인 학습용 프로젝트입니다. LG 트윈스·(주)LG스포츠·KBO와 무관하며 "
-        "구단 로고·워드마크·마스코트·유니폼 디자인을 사용하지 않습니다. "
-        "순위·일정 데이터: 네이버 스포츠, 구단 기본 정보: 위키백과(CC BY-SA 4.0), 영상: YouTube."
+        "비공식 개인 학습용 프로젝트입니다. KBO 및 소속 10개 구단과 무관하며 "
+        "구단 로고·워드마크·마스코트·유니폼 디자인·구단 서체를 사용하지 않습니다. "
+        "구단 상징색은 각 구단 공식 웹사이트에서 확인한 색상값만 사용했습니다. "
+        "순위·일정·선수 기록: 네이버 스포츠, 구단 기본 정보: 위키백과(CC BY-SA 4.0)."
     )
+
+tab_chat, tab_clubs = st.tabs(["대화", "구단"])
+
+with tab_clubs:
+    clubs.render()
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"], avatar=":material/sports_baseball:" if message["role"] == "assistant" else None):

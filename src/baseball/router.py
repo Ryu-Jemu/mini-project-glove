@@ -51,7 +51,9 @@ KBO_TOPIC_RE: tuple[tuple[str, re.Pattern[str]], ...] = (
         r"일정|남은\s*경기|잔여\s*경기|다음\s*경기|경기\s*일정|몇\s*경기\s*남"
         r"|오늘.{0,8}경기|내일.{0,8}경기|언제\s*경기|경기\s*언제")),
     ("team_info", re.compile(r"연고지|본거지|홈\s*구장|구장|창단|구단\s*정보|어느\s*도시|어디\s*연고")),
-    ("roster", re.compile(r"선수\s*명단|로스터|주요\s*선수|타율\s*1위")),
+    ("roster", re.compile(
+        r"명단|로스터|선수단|엔트리|주요\s*선수|투수진|타선|불펜|선발진"
+        r"|타율\s*1위|홈런\s*1위|누가\s*뛰")),
 )
 MAX_TOPICS = 2
 
@@ -140,6 +142,11 @@ def route(question: str, *, llm: Any | None = None, settings: Settings | None = 
     t = unicodedata.normalize("NFKC", question or "")
     r, l = bool(RULE_RE.search(t)), bool(LATEST_RE.search(t))
     d = bool(BASEBALL_DOMAIN_RE.search(t))
+    topics, teams = _tags(t)
+    if topics and teams:
+        # 구단명과 KBO 주제가 함께 있으면 구단 데이터 질문이다.
+        # '투수'·'타자' 같은 단어가 규칙 정규식에도 있어 규칙 질문으로 빠지는 것을 막는다.
+        return Route("latest", "keyword", r, True, d, topics, teams)
     if r and l:
         return Route("mixed", "keyword", r, l, d, *_tags(t))
     if l:
