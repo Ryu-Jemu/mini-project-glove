@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+chroma_pdf/
+backup/
+.pytest_cache/
+design/extracted/
+ui/static/*.woff2
+evaluation/results/*.json
+.run/

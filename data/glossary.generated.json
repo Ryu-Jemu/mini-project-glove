@@ -1,0 +1,1080 @@
+[
+  {
+    "term_no": 1,
+    "term_en": "ADJUDGED",
+    "term_ko": "어드저지드·판정",
+    "rule_id": "DEF-1",
+    "page": 193,
+    "aliases": [
+      "ADJUDGED",
+      "Adjudged",
+      "어드저지드",
+      "어드저지드·판정",
+      "판정"
+    ]
+  },
+  {
+    "term_no": 2,
+    "term_en": "APPEAL",
+    "term_ko": "어필",
+    "rule_id": "DEF-2",
+    "page": 193,
+    "aliases": [
+      "APPEAL",
+      "Appeal",
+      "어필"
+    ]
+  },
+  {
+    "term_no": 3,
+    "term_en": "BALK",
+    "term_ko": "보크",
+    "rule_id": "DEF-3",
+    "page": 193,
+    "aliases": [
+      "BALK",
+      "Balk",
+      "보크"
+    ]
+  },
+  {
+    "term_no": 4,
+    "term_en": "BALL",
+    "term_ko": "볼",
+    "rule_id": "DEF-4",
+    "page": 193,
+    "aliases": [
+      "BALL",
+      "Ball",
+      "볼"
+    ]
+  },
+  {
+    "term_no": 5,
+    "term_en": "BASE",
+    "term_ko": "베이스·루",
+    "rule_id": "DEF-5",
+    "page": 193,
+    "aliases": [
+      "BASE",
+      "Base",
+      "루",
+      "베이스",
+      "베이스·루"
+    ]
+  },
+  {
+    "term_no": 6,
+    "term_en": "BASE COACH",
+    "term_ko": "베이스 코치",
+    "rule_id": "DEF-6",
+    "page": 193,
+    "aliases": [
+      "BASE COACH",
+      "Base Coach",
+      "베이스 코치"
+    ]
+  },
+  {
+    "term_no": 7,
+    "term_en": "BASE ON BALLS",
+    "term_ko": "베이스 온 볼스·볼넷",
+    "rule_id": "DEF-7",
+    "page": 194,
+    "aliases": [
+      "BASE ON BALLS",
+      "Base On Balls",
+      "베이스 온 볼스",
+      "베이스 온 볼스·볼넷",
+      "볼넷"
+    ]
+  },
+  {
+    "term_no": 8,
+    "term_en": "BATTER",
+    "term_ko": "배터·타자",
+    "rule_id": "DEF-8",
+    "page": 194,
+    "aliases": [
+      "BATTER",
+      "Batter",
+      "배터",
+      "배터·타자",
+      "타자"
+    ]
+  },
+  {
+    "term_no": 9,
+    "term_en": "BATTER RUNNER",
+    "term_ko": "타자주자",
+    "rule_id": "DEF-9",
+    "page": 194,
+    "aliases": [
+      "BATTER RUNNER",
+      "Batter Runner",
+      "타자주자"
+    ]
+  },
+  {
+    "term_no": 10,
+    "term_en": "BATTER`S BOX",
+    "term_ko": "배터스 박스·타자석",
+    "rule_id": "DEF-10",
+    "page": 194,
+    "aliases": [
+      "BATTER`S BOX",
+      "Batter`S Box",
+      "배터스 박스",
+      "배터스 박스·타자석",
+      "타자석"
+    ]
+  },
+  {
+    "term_no": 11,
+    "term_en": "BATTERY",
+    "term_ko": "배터리·투포수",
+    "rule_id": "DEF-11",
+    "page": 194,
+    "aliases": [
+      "BATTERY",
+      "Battery",
+      "배터리",
+      "배터리·투포수",
+      "투포수"
+    ]
+  },
+  {
+    "term_no": 12,
+    "term_en": "BENCH or DUGOUT",
+    "term_ko": "벤치 또는 덕아웃",
+    "rule_id": "DEF-12",
+    "page": 194,
+    "aliases": [
+      "BENCH or DUGOUT",
+      "Bench Or Dugout",
+      "벤치 또는 덕아웃"
+    ]
+  },
+  {
+    "term_no": 13,
+    "term_en": "BUNT",
+    "term_ko": "번트",
+    "rule_id": "DEF-13",
+    "page": 194,
+    "aliases": [
+      "BUNT",
+      "Bunt",
+      "번트"
+    ]
+  },
+  {
+    "term_no": 14,
+    "term_en": "CALLED GAME",
+    "term_ko": "콜드게임·중도종료경기",
+    "rule_id": "DEF-14",
+    "page": 195,
+    "aliases": [
+      "CALLED GAME",
+      "Called Game",
+      "중도종료경기",
+      "콜드게임",
+      "콜드게임·중도종료경기"
+    ]
+  },
+  {
+    "term_no": 15,
+    "term_en": "CATCH",
+    "term_ko": "캐치·포구",
+    "rule_id": "DEF-15",
+    "page": 195,
+    "aliases": [
+      "CATCH",
+      "Catch",
+      "캐치",
+      "캐치·포구",
+      "포구"
+    ]
+  },
+  {
+    "term_no": 16,
+    "term_en": "CATCHER",
+    "term_ko": "캐처·포수",
+    "rule_id": "DEF-16",
+    "page": 196,
+    "aliases": [
+      "CATCHER",
+      "Catcher",
+      "캐처",
+      "캐처·포수",
+      "포수"
+    ]
+  },
+  {
+    "term_no": 17,
+    "term_en": "CATCHER’S BOX",
+    "term_ko": "캐처스 박스·포수석",
+    "rule_id": "DEF-17",
+    "page": 196,
+    "aliases": [
+      "CATCHER’S BOX",
+      "Catcher’S Box",
+      "캐처스 박스",
+      "캐처스 박스·포수석",
+      "포수석"
+    ]
+  },
+  {
+    "term_no": 18,
+    "term_en": "CLUB",
+    "term_ko": "클럽",
+    "rule_id": "DEF-18",
+    "page": 196,
+    "aliases": [
+      "CLUB",
+      "Club",
+      "클럽"
+    ]
+  },
+  {
+    "term_no": 19,
+    "term_en": "COACH",
+    "term_ko": "코치",
+    "rule_id": "DEF-19",
+    "page": 196,
+    "aliases": [
+      "COACH",
+      "Coach",
+      "코치"
+    ]
+  },
+  {
+    "term_no": 20,
+    "term_en": "DEAD BALL",
+    "term_ko": "데드 볼",
+    "rule_id": "DEF-20",
+    "page": 196,
+    "aliases": [
+      "DEAD BALL",
+      "Dead Ball",
+      "데드 볼"
+    ]
+  },
+  {
+    "term_no": 21,
+    "term_en": "DEFENSE or DEFENSIVE",
+    "term_ko": "디펜스 또는 디펜시브·수비팀",
+    "rule_id": "DEF-21",
+    "page": 196,
+    "aliases": [
+      "DEFENSE or DEFENSIVE",
+      "Defense Or Defensive",
+      "디펜스 또는 디펜시브",
+      "디펜스 또는 디펜시브·수비팀",
+      "수비팀"
+    ]
+  },
+  {
+    "term_no": 22,
+    "term_en": "DOUBLE HEADER",
+    "term_ko": "더블헤더·연속경기",
+    "rule_id": "DEF-22",
+    "page": 196,
+    "aliases": [
+      "DOUBLE HEADER",
+      "Double Header",
+      "더블헤더",
+      "더블헤더·연속경기",
+      "연속경기"
+    ]
+  },
+  {
+    "term_no": 23,
+    "term_en": "DOUBLE PLAY",
+    "term_ko": "더블 플레이·병살",
+    "rule_id": "DEF-23",
+    "page": 196,
+    "aliases": [
+      "DOUBLE PLAY",
+      "Double Play",
+      "더블 플레이",
+      "더블 플레이·병살",
+      "병살"
+    ]
+  },
+  {
+    "term_no": 24,
+    "term_en": "DUGOUT",
+    "term_ko": "덕아웃",
+    "rule_id": "DEF-24",
+    "page": 197,
+    "aliases": [
+      "DUGOUT",
+      "Dugout",
+      "덕아웃"
+    ]
+  },
+  {
+    "term_no": 25,
+    "term_en": "FAIR BALL",
+    "term_ko": "페어 볼",
+    "rule_id": "DEF-25",
+    "page": 197,
+    "aliases": [
+      "FAIR BALL",
+      "Fair Ball",
+      "페어 볼"
+    ]
+  },
+  {
+    "term_no": 26,
+    "term_en": "FAIR TERRITORY",
+    "term_ko": "페어 테리터리·페어지역",
+    "rule_id": "DEF-26",
+    "page": 198,
+    "aliases": [
+      "FAIR TERRITORY",
+      "Fair Territory",
+      "페어 테리터리",
+      "페어 테리터리·페어지역",
+      "페어지역"
+    ]
+  },
+  {
+    "term_no": 27,
+    "term_en": "FIELDER",
+    "term_ko": "필더·야수",
+    "rule_id": "DEF-27",
+    "page": 198,
+    "aliases": [
+      "FIELDER",
+      "Fielder",
+      "야수",
+      "필더",
+      "필더·야수"
+    ]
+  },
+  {
+    "term_no": 28,
+    "term_en": "FIELDER’S CHOICE",
+    "term_ko": "필더스 초이스·야수선택",
+    "rule_id": "DEF-28",
+    "page": 198,
+    "aliases": [
+      "FIELDER’S CHOICE",
+      "Fielder’S Choice",
+      "야수선택",
+      "필더스 초이스",
+      "필더스 초이스·야수선택"
+    ]
+  },
+  {
+    "term_no": 29,
+    "term_en": "FLY BALL",
+    "term_ko": "플라이 볼·뜬공",
+    "rule_id": "DEF-29",
+    "page": 199,
+    "aliases": [
+      "FLY BALL",
+      "Fly Ball",
+      "뜬공",
+      "플라이 볼",
+      "플라이 볼·뜬공"
+    ]
+  },
+  {
+    "term_no": 30,
+    "term_en": "FORCE PLAY",
+    "term_ko": "포스 플레이",
+    "rule_id": "DEF-30",
+    "page": 199,
+    "aliases": [
+      "FORCE PLAY",
+      "Force Play",
+      "포스 플레이"
+    ]
+  },
+  {
+    "term_no": 31,
+    "term_en": "FORFEITED GAME",
+    "term_ko": "포피티드 게임·몰수경기",
+    "rule_id": "DEF-31",
+    "page": 199,
+    "aliases": [
+      "FORFEITED GAME",
+      "Forfeited Game",
+      "몰수경기",
+      "포피티드 게임",
+      "포피티드 게임·몰수경기"
+    ]
+  },
+  {
+    "term_no": 32,
+    "term_en": "FOUL BALL",
+    "term_ko": "파울 볼",
+    "rule_id": "DEF-32",
+    "page": 200,
+    "aliases": [
+      "FOUL BALL",
+      "Foul Ball",
+      "파울 볼"
+    ]
+  },
+  {
+    "term_no": 33,
+    "term_en": "FOUL TERRITORY",
+    "term_ko": "파울 테리터리·파울지역",
+    "rule_id": "DEF-33",
+    "page": 200,
+    "aliases": [
+      "FOUL TERRITORY",
+      "Foul Territory",
+      "파울 테리터리",
+      "파울 테리터리·파울지역",
+      "파울지역"
+    ]
+  },
+  {
+    "term_no": 34,
+    "term_en": "FOUL TIP",
+    "term_ko": "파울 팁",
+    "rule_id": "DEF-34",
+    "page": 200,
+    "aliases": [
+      "FOUL TIP",
+      "Foul Tip",
+      "파울 팁"
+    ]
+  },
+  {
+    "term_no": 35,
+    "term_en": "GROUND BALL",
+    "term_ko": "그라운드 볼·땅볼",
+    "rule_id": "DEF-35",
+    "page": 201,
+    "aliases": [
+      "GROUND BALL",
+      "Ground Ball",
+      "그라운드 볼",
+      "그라운드 볼·땅볼",
+      "땅볼"
+    ]
+  },
+  {
+    "term_no": 36,
+    "term_en": "HOME TEAM",
+    "term_ko": "홈팀",
+    "rule_id": "DEF-36",
+    "page": 201,
+    "aliases": [
+      "HOME TEAM",
+      "Home Team",
+      "홈팀"
+    ]
+  },
+  {
+    "term_no": 37,
+    "term_en": "ILLEGAL or ILLEGALLY",
+    "term_ko": "일리걸 또는 일리걸리·규칙 위반",
+    "rule_id": "DEF-37",
+    "page": 201,
+    "aliases": [
+      "ILLEGAL or ILLEGALLY",
+      "Illegal Or Illegally",
+      "규칙 위반",
+      "일리걸 또는 일리걸리",
+      "일리걸 또는 일리걸리·규칙 위반"
+    ]
+  },
+  {
+    "term_no": 38,
+    "term_en": "ILLEGAL PITCH",
+    "term_ko": "일리걸 피치·반칙투구",
+    "rule_id": "DEF-38",
+    "page": 201,
+    "aliases": [
+      "ILLEGAL PITCH",
+      "Illegal Pitch",
+      "반칙투구",
+      "일리걸 피치",
+      "일리걸 피치·반칙투구"
+    ]
+  },
+  {
+    "term_no": 39,
+    "term_en": "INFIELDER",
+    "term_ko": "인필더·내야수",
+    "rule_id": "DEF-39",
+    "page": 201,
+    "aliases": [
+      "INFIELDER",
+      "Infielder",
+      "내야수",
+      "인필더",
+      "인필더·내야수"
+    ]
+  },
+  {
+    "term_no": 40,
+    "term_en": "INFIELD FLY",
+    "term_ko": "인필드 플라이",
+    "rule_id": "DEF-40",
+    "page": 201,
+    "aliases": [
+      "INFIELD FLY",
+      "Infield Fly",
+      "인필드 플라이"
+    ]
+  },
+  {
+    "term_no": 41,
+    "term_en": "IN FLIGHT",
+    "term_ko": "인 플라이트·떠 있는 상태",
+    "rule_id": "DEF-41",
+    "page": 203,
+    "aliases": [
+      "IN FLIGHT",
+      "In Flight",
+      "떠 있는 상태",
+      "인 플라이트",
+      "인 플라이트·떠 있는 상태"
+    ]
+  },
+  {
+    "term_no": 42,
+    "term_en": "IN JEOPARDY",
+    "term_ko": "인 제퍼디",
+    "rule_id": "DEF-42",
+    "page": 203,
+    "aliases": [
+      "IN JEOPARDY",
+      "In Jeopardy",
+      "인 제퍼디"
+    ]
+  },
+  {
+    "term_no": 43,
+    "term_en": "INNING",
+    "term_ko": "이닝·회",
+    "rule_id": "DEF-43",
+    "page": 203,
+    "aliases": [
+      "INNING",
+      "Inning",
+      "이닝",
+      "이닝·회",
+      "회"
+    ]
+  },
+  {
+    "term_no": 44,
+    "term_en": "INTERFERENCE",
+    "term_ko": "인터피어런스·방해",
+    "rule_id": "DEF-44",
+    "page": 203,
+    "aliases": [
+      "INTERFERENCE",
+      "Interference",
+      "방해",
+      "인터피어런스",
+      "인터피어런스·방해"
+    ]
+  },
+  {
+    "term_no": 45,
+    "term_en": "LEAGUE",
+    "term_ko": "리그",
+    "rule_id": "DEF-45",
+    "page": 204,
+    "aliases": [
+      "LEAGUE",
+      "League",
+      "리그"
+    ]
+  },
+  {
+    "term_no": 46,
+    "term_en": "LEAGUE PRESIDENT",
+    "term_ko": "리그 프레지던트·리그회장",
+    "rule_id": "DEF-46",
+    "page": 204,
+    "aliases": [
+      "LEAGUE PRESIDENT",
+      "League President",
+      "리그 프레지던트",
+      "리그 프레지던트·리그회장",
+      "리그회장"
+    ]
+  },
+  {
+    "term_no": 47,
+    "term_en": "LEGAL or LEGALLY",
+    "term_ko": "리걸 또는 리걸리",
+    "rule_id": "DEF-47",
+    "page": 204,
+    "aliases": [
+      "LEGAL or LEGALLY",
+      "Legal Or Legally",
+      "리걸 또는 리걸리"
+    ]
+  },
+  {
+    "term_no": 48,
+    "term_en": "LIVE BALL",
+    "term_ko": "라이브 볼",
+    "rule_id": "DEF-48",
+    "page": 204,
+    "aliases": [
+      "LIVE BALL",
+      "Live Ball",
+      "라이브 볼"
+    ]
+  },
+  {
+    "term_no": 49,
+    "term_en": "LINE DRIVE",
+    "term_ko": "라인 드라이브",
+    "rule_id": "DEF-49",
+    "page": 204,
+    "aliases": [
+      "LINE DRIVE",
+      "Line Drive",
+      "라인 드라이브"
+    ]
+  },
+  {
+    "term_no": 50,
+    "term_en": "MANAGER",
+    "term_ko": "매니저·감독",
+    "rule_id": "DEF-50",
+    "page": 204,
+    "aliases": [
+      "MANAGER",
+      "Manager",
+      "감독",
+      "매니저",
+      "매니저·감독"
+    ]
+  },
+  {
+    "term_no": 51,
+    "term_en": "OBSTRUCTION",
+    "term_ko": "업스트럭션·주루방해",
+    "rule_id": "DEF-51",
+    "page": 204,
+    "aliases": [
+      "OBSTRUCTION",
+      "Obstruction",
+      "업스트럭션",
+      "업스트럭션·주루방해",
+      "주루방해"
+    ]
+  },
+  {
+    "term_no": 52,
+    "term_en": "OFFENCE",
+    "term_ko": "오펜스·공격 측",
+    "rule_id": "DEF-52",
+    "page": 205,
+    "aliases": [
+      "OFFENCE",
+      "Offence",
+      "공격 측",
+      "오펜스",
+      "오펜스·공격 측"
+    ]
+  },
+  {
+    "term_no": 53,
+    "term_en": "OFFICIAL SCORER",
+    "term_ko": "오피셜 스코어러·공식기록원",
+    "rule_id": "DEF-53",
+    "page": 205,
+    "aliases": [
+      "OFFICIAL SCORER",
+      "Official Scorer",
+      "공식기록원",
+      "오피셜 스코어러",
+      "오피셜 스코어러·공식기록원"
+    ]
+  },
+  {
+    "term_no": 54,
+    "term_en": "OUT",
+    "term_ko": "아웃",
+    "rule_id": "DEF-54",
+    "page": 205,
+    "aliases": [
+      "OUT",
+      "Out",
+      "아웃"
+    ]
+  },
+  {
+    "term_no": 55,
+    "term_en": "OUTFIELDER",
+    "term_ko": "아웃필더·외야수",
+    "rule_id": "DEF-55",
+    "page": 205,
+    "aliases": [
+      "OUTFIELDER",
+      "Outfielder",
+      "아웃필더",
+      "아웃필더·외야수",
+      "외야수"
+    ]
+  },
+  {
+    "term_no": 56,
+    "term_en": "OVERSLIDE or OVERSLIDING",
+    "term_ko": "오버슬라이드 또는 오버슬라이딩",
+    "rule_id": "DEF-56",
+    "page": 205,
+    "aliases": [
+      "OVERSLIDE or OVERSLIDING",
+      "Overslide Or Oversliding",
+      "오버슬라이드 또는 오버슬라이딩"
+    ]
+  },
+  {
+    "term_no": 57,
+    "term_en": "PENALTY",
+    "term_ko": "페널티·벌칙",
+    "rule_id": "DEF-57",
+    "page": 205,
+    "aliases": [
+      "PENALTY",
+      "Penalty",
+      "벌칙",
+      "페널티",
+      "페널티·벌칙"
+    ]
+  },
+  {
+    "term_no": 58,
+    "term_en": "PERSON",
+    "term_ko": "퍼슨·신체",
+    "rule_id": "DEF-58",
+    "page": 206,
+    "aliases": [
+      "PERSON",
+      "Person",
+      "신체",
+      "퍼슨",
+      "퍼슨·신체"
+    ]
+  },
+  {
+    "term_no": 59,
+    "term_en": "PITCH",
+    "term_ko": "피치·투구",
+    "rule_id": "DEF-59",
+    "page": 206,
+    "aliases": [
+      "PITCH",
+      "Pitch",
+      "투구",
+      "피치",
+      "피치·투구"
+    ]
+  },
+  {
+    "term_no": 60,
+    "term_en": "PITCHER",
+    "term_ko": "피처·투수",
+    "rule_id": "DEF-60",
+    "page": 206,
+    "aliases": [
+      "PITCHER",
+      "Pitcher",
+      "투수",
+      "피처",
+      "피처·투수"
+    ]
+  },
+  {
+    "term_no": 61,
+    "term_en": "PITCHER’S PIVOT FOOT",
+    "term_ko": "피처스 피벗 풋·투수의 중심발",
+    "rule_id": "DEF-61",
+    "page": 206,
+    "aliases": [
+      "PITCHER’S PIVOT FOOT",
+      "Pitcher’S Pivot Foot",
+      "투수의 중심발",
+      "피처스 피벗 풋",
+      "피처스 피벗 풋·투수의 중심발"
+    ]
+  },
+  {
+    "term_no": 62,
+    "term_en": "PLAY",
+    "term_ko": "플레이·경기개시 / 경기속행",
+    "rule_id": "DEF-62",
+    "page": 206,
+    "aliases": [
+      "PLAY",
+      "Play",
+      "경기개시 / 경기속행",
+      "플레이",
+      "플레이·경기개시 / 경기속행"
+    ]
+  },
+  {
+    "term_no": 63,
+    "term_en": "QUICK RETURN PITCH",
+    "term_ko": "퀵 리턴 피치",
+    "rule_id": "DEF-63",
+    "page": 206,
+    "aliases": [
+      "QUICK RETURN PITCH",
+      "Quick Return Pitch",
+      "퀵 리턴 피치"
+    ]
+  },
+  {
+    "term_no": 64,
+    "term_en": "REGULATION GAME",
+    "term_ko": "레귤레이션 게임·정식경기",
+    "rule_id": "DEF-64",
+    "page": 206,
+    "aliases": [
+      "REGULATION GAME",
+      "Regulation Game",
+      "레귤레이션 게임",
+      "레귤레이션 게임·정식경기",
+      "정식경기"
+    ]
+  },
+  {
+    "term_no": 65,
+    "term_en": "RETOUCH",
+    "term_ko": "리터치·귀루",
+    "rule_id": "DEF-65",
+    "page": 206,
+    "aliases": [
+      "RETOUCH",
+      "Retouch",
+      "귀루",
+      "리터치",
+      "리터치·귀루"
+    ]
+  },
+  {
+    "term_no": 66,
+    "term_en": "RUN or SCORE",
+    "term_ko": "런 또는 스코어·득점",
+    "rule_id": "DEF-66",
+    "page": 207,
+    "aliases": [
+      "RUN or SCORE",
+      "Run Or Score",
+      "득점",
+      "런 또는 스코어",
+      "런 또는 스코어·득점"
+    ]
+  },
+  {
+    "term_no": 67,
+    "term_en": "RUN-DOWN",
+    "term_ko": "런다운",
+    "rule_id": "DEF-67",
+    "page": 207,
+    "aliases": [
+      "RUN-DOWN",
+      "Run-Down",
+      "런다운"
+    ]
+  },
+  {
+    "term_no": 68,
+    "term_en": "RUNNER",
+    "term_ko": "러너·주자",
+    "rule_id": "DEF-68",
+    "page": 207,
+    "aliases": [
+      "RUNNER",
+      "Runner",
+      "러너",
+      "러너·주자",
+      "주자"
+    ]
+  },
+  {
+    "term_no": 69,
+    "term_en": "SAFE",
+    "term_ko": "세이프",
+    "rule_id": "DEF-69",
+    "page": 207,
+    "aliases": [
+      "SAFE",
+      "Safe",
+      "세이프"
+    ]
+  },
+  {
+    "term_no": 70,
+    "term_en": "SET POSITION",
+    "term_ko": "세트 포지션",
+    "rule_id": "DEF-70",
+    "page": 207,
+    "aliases": [
+      "SET POSITION",
+      "Set Position",
+      "세트 포지션"
+    ]
+  },
+  {
+    "term_no": 71,
+    "term_en": "SQUEEZE PLAY",
+    "term_ko": "스퀴즈 플레이",
+    "rule_id": "DEF-71",
+    "page": 207,
+    "aliases": [
+      "SQUEEZE PLAY",
+      "Squeeze Play",
+      "스퀴즈 플레이"
+    ]
+  },
+  {
+    "term_no": 72,
+    "term_en": "STRIKE",
+    "term_ko": "스트라이크",
+    "rule_id": "DEF-72",
+    "page": 207,
+    "aliases": [
+      "STRIKE",
+      "Strike",
+      "스트라이크"
+    ]
+  },
+  {
+    "term_no": 73,
+    "term_en": "STRIKE ZONE",
+    "term_ko": "스트라이크 존",
+    "rule_id": "DEF-73",
+    "page": 208,
+    "aliases": [
+      "STRIKE ZONE",
+      "Strike Zone",
+      "스트라이크 존"
+    ]
+  },
+  {
+    "term_no": 74,
+    "term_en": "SUSPENDED GAME",
+    "term_ko": "서스펜디드 게임·일시정지 경기",
+    "rule_id": "DEF-74",
+    "page": 208,
+    "aliases": [
+      "SUSPENDED GAME",
+      "Suspended Game",
+      "서스펜디드 게임",
+      "서스펜디드 게임·일시정지 경기",
+      "일시정지 경기"
+    ]
+  },
+  {
+    "term_no": 75,
+    "term_en": "TAG",
+    "term_ko": "태그",
+    "rule_id": "DEF-75",
+    "page": 208,
+    "aliases": [
+      "TAG",
+      "Tag",
+      "태그"
+    ]
+  },
+  {
+    "term_no": 76,
+    "term_en": "THROW",
+    "term_ko": "스로·송구",
+    "rule_id": "DEF-76",
+    "page": 209,
+    "aliases": [
+      "THROW",
+      "Throw",
+      "송구",
+      "스로",
+      "스로·송구"
+    ]
+  },
+  {
+    "term_no": 77,
+    "term_en": "TIE GAME",
+    "term_ko": "타이 게임·무승부경기",
+    "rule_id": "DEF-77",
+    "page": 209,
+    "aliases": [
+      "TIE GAME",
+      "Tie Game",
+      "무승부경기",
+      "타이 게임",
+      "타이 게임·무승부경기"
+    ]
+  },
+  {
+    "term_no": 78,
+    "term_en": "TIME",
+    "term_ko": "타임",
+    "rule_id": "DEF-78",
+    "page": 209,
+    "aliases": [
+      "TIME",
+      "Time",
+      "타임"
+    ]
+  },
+  {
+    "term_no": 79,
+    "term_en": "TOUCH",
+    "term_ko": "터치",
+    "rule_id": "DEF-79",
+    "page": 209,
+    "aliases": [
+      "TOUCH",
+      "Touch",
+      "터치"
+    ]
+  },
+  {
+    "term_no": 80,
+    "term_en": "TRIPLE PLAY",
+    "term_ko": "트리플 플레이·삼중살",
+    "rule_id": "DEF-80",
+    "page": 209,
+    "aliases": [
+      "TRIPLE PLAY",
+      "Triple Play",
+      "삼중살",
+      "트리플 플레이",
+      "트리플 플레이·삼중살"
+    ]
+  },
+  {
+    "term_no": 81,
+    "term_en": "WILD PITCH",
+    "term_ko": "와일드 피치·폭투",
+    "rule_id": "DEF-81",
+    "page": 209,
+    "aliases": [
+      "WILD PITCH",
+      "Wild Pitch",
+      "와일드 피치",
+      "와일드 피치·폭투",
+      "폭투"
+    ]
+  },
+  {
+    "term_no": 82,
+    "term_en": "WIND-UP POSITION",
+    "term_ko": "와인드업 포지션",
+    "rule_id": "DEF-82",
+    "page": 210,
+    "aliases": [
+      "WIND-UP POSITION",
+      "Wind-Up Position",
+      "와인드업 포지션"
+    ]
+  }
+]

@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" href="./favicon.svg">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    /* 실제 앱은 Pretendard(SIL OFL)를 쓴다. 아트보드는 CSP 상 웹폰트를 못 받아 시스템 스택으로 근사한다. */
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif; }
+    a { color: #A50034; } a:hover { color: #C40037; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  </style>
+</helmet>
+<div style="width:1200px;height:800px;background:#FFFFFF;color:#131313;padding:32px;display:flex;flex-direction:column;gap:20px">
+  <div>
+    <strong style="font-size:18px">디자인 토큰</strong>
+    <p style="margin:6px 0 0;font-size:12px;color:#666666">LG 트윈스 색상에서 파생한 팔레트(색상만 사용). 엠블럼·워드마크·마스코트·구단 서체는 쓰지 않는다.</p>
+  </div>
+  <div>
+    <div style="font-size:12px;color:#666666;margin-bottom:6px">red ramp (hue 18.3 고정)</div>
+    <div style="display:flex;border-radius:10px;overflow:hidden"><div style="flex:1;height:64px;background:#FFF2F2"></div><div style="flex:1;height:64px;background:#FFE4E3"></div><div style="flex:1;height:64px;background:#FFCACA"></div><div style="flex:1;height:64px;background:#FF9FA1"></div><div style="flex:1;height:64px;background:#EB5E69"></div><div style="flex:1;height:64px;background:#D92D49"></div><div style="flex:1;height:64px;background:#C40037"></div><div style="flex:1;height:64px;background:#A50034"></div><div style="flex:1;height:64px;background:#860524"></div><div style="flex:1;height:64px;background:#62081A"></div><div style="flex:1;height:64px;background:#39040C"></div></div>
+  </div>
+  <div style="display:flex;gap:24px">
+    <div style="flex:1">
+      <div style="font-size:12px;color:#666666;margin-bottom:8px">대비비(WCAG)</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px"><tbody><tr><td style="padding:8px 12px;border-bottom:1px solid #E2E2E2">본문/배경</td><td class="mono" style="padding:8px 12px;border-bottom:1px solid #E2E2E2">#131313 / #FFFFFF</td><td style="padding:8px 12px;border-bottom:1px solid #E2E2E2;font-weight:700">18.58:1</td></tr><tr><td style="padding:8px 12px;border-bottom:1px solid #E2E2E2">링크</td><td class="mono" style="padding:8px 12px;border-bottom:1px solid #E2E2E2">#A50034 / #FFFFFF</td><td style="padding:8px 12px;border-bottom:1px solid #E2E2E2;font-weight:700">7.93:1</td></tr><tr><td style="padding:8px 12px;border-bottom:1px solid #E2E2E2">primary 라벨</td><td class="mono" style="padding:8px 12px;border-bottom:1px solid #E2E2E2">#FFFFFF / #C40037</td><td style="padding:8px 12px;border-bottom:1px solid #E2E2E2;font-weight:700">6.17:1</td></tr><tr><td style="padding:8px 12px;border-bottom:1px solid #E2E2E2">다크 primary 라벨</td><td class="mono" style="padding:8px 12px;border-bottom:1px solid #E2E2E2">#FFFFFF / #D92D49</td><td style="padding:8px 12px;border-bottom:1px solid #E2E2E2;font-weight:700">4.75:1</td></tr><tr><td style="padding:8px 12px;border-bottom:1px solid #E2E2E2">다크 링크</td><td class="mono" style="padding:8px 12px;border-bottom:1px solid #E2E2E2">#EB5E69 / #131313</td><td style="padding:8px 12px;border-bottom:1px solid #E2E2E2;font-weight:700">5.61:1</td></tr><tr><td style="padding:8px 12px;border-bottom:1px solid #E2E2E2">입력 테두리</td><td class="mono" style="padding:8px 12px;border-bottom:1px solid #E2E2E2">#888888 / #FFFFFF</td><td style="padding:8px 12px;border-bottom:1px solid #E2E2E2;font-weight:700">3.54:1</td></tr></tbody></table>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:12px;color:#666666">타이포 · 형태</div>
+      <div style="font-size:28px;font-weight:700">본문 700 · 제목</div>
+      <div style="font-size:15px;font-weight:400">본문 400 · 15px / line-height 1.75</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span style="border:1px solid #E2E2E2;border-radius:8px;padding:10px 16px;font-size:13px">radius medium (8px)</span>
+        <span style="background:#C40037;color:#FFFFFF;border-radius:999px;padding:10px 20px;font-size:13px">radius full</span>
+      </div>
+      <div style="border:1px solid #860F26;background:#FFEBEA;color:#860F26;border-radius:10px;padding:10px 14px;font-size:13px">⚠ 오류 상태는 색만으로 표시하지 않는다(아이콘+문구 병기)</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

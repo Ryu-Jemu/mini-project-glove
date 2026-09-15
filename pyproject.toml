@@ -1,0 +1,48 @@
+[project]
+name = "baseball"
+version = "0.1.0"
+description = "입문자를 위한 KBO 야구 규칙 설명 에이전트 (Phase 1)"
+readme = "README.md"
+authors = [{ name = "류제무", email = "decemryu77@gmail.com" }]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "langchain-core>=1.6.3,<2",
+    "langchain-openai>=1.6.2,<2",
+    "langchain-text-splitters>=1.1.2,<2",
+    "langchain-tavily>=0.2.18,<0.3",
+    "openai>=3.13,<4",
+    "fastapi>=0.141.1,<0.142",
+    "uvicorn[standard]>=0.53,<0.54",
+    "streamlit>=1.63,<2",
+    "pydantic-settings>=2.15,<3",
+    "minio>=7.2.20,<8",
+    "pymupdf>=1.28.2,<2",
+    "kiwipiepy>=0.23.2,<0.24",
+    "rank-bm25>=0.2.2,<0.3",
+    "psycopg[binary,pool]>=3.3.5,<4",
+    "pgvector>=0.5,<0.6",
+    "tiktoken>=0.14,<0.15",
+    "httpx>=0.28,<1",
+    "pyyaml>=6.0,<7",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1,<10",
+    "pytest-asyncio>=1.4,<2",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+markers = [
+    "live: 실제 OpenAI/Tavily API 호출(키 필요, 비용 발생)",
+    "db: 실제 Postgres 컨테이너 필요",
+    "llm_judge: LLM 심판 호출(비용 발생)",
+    "youtube_api: YouTube Data API 쿼터 소모(Phase 2)",
+]

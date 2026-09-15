@@ -1,0 +1,10 @@
+# Streamlit Community Cloud 전용 의존성.
+#
+# 이 파일은 엔트리포인트(ui/app.py)와 같은 디렉터리에 있으므로
+# 저장소 루트의 uv.lock 보다 우선한다.
+# (Community Cloud 는 엔트리포인트 디렉터리를 먼저 찾고, 그다음 루트를 찾는다.)
+#
+# UI 는 백엔드 코드를 import 하지 않는 순수 SSE 클라이언트다.
+# kiwipiepy·pymupdf·psycopg·langchain 등은 백엔드에만 필요하므로 여기 넣지 않는다.
+streamlit==1.63.0
+httpx==0.28.1
