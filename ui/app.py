@@ -66,8 +66,13 @@ with st.sidebar:
         st.markdown(f"● 준비됨 · chunks {ready['document']['chunks']}")
         st.caption(f"{ready['chat_model']} · {ready['prompt_sha']} · web {ready['web_search']}")
     else:
-        hint = "백엔드(127.0.0.1:8000)를 실행하세요" if MODE == "api" else "색인·데이터베이스 설정을 확인하세요"
+        hint = ("백엔드(127.0.0.1:8000)를 실행하세요" if MODE == "api"
+                else st.session_state.get("service_hint", "색인·데이터베이스 설정을 확인하세요"))
         st.markdown(f"○ 준비 안 됨 — {hint}")
+        detail = st.session_state.get("service_error")
+        if detail:
+            with st.expander("오류 내용 보기"):
+                st.code(detail[:600], language="text")
         st.caption(f"prompt {PROMPT_SHA}")
 
     url = document_url()

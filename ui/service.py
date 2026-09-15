@@ -62,12 +62,36 @@ def _build_service() -> Any:
     return RagService.create()
 
 
+_HINTS = (
+    ("could not translate host name", "PG_DSN 의 호스트 이름이 잘못되었습니다."),
+    ("connection refused", "데이터베이스에 연결하지 못했습니다. PG_DSN 을 확인하세요."),
+    ("password authentication", "데이터베이스 비밀번호가 틀렸습니다. PG_DSN 을 확인하세요."),
+    ("does not exist", "데이터베이스 또는 테이블이 없습니다. 색인을 먼저 넣어야 합니다."),
+    ("timeout", "데이터베이스 응답이 없습니다. 주소와 방화벽을 확인하세요."),
+    ("no such file", "필요한 데이터 파일이 저장소에 없습니다."),
+    ("sslmode", "PG_DSN 의 SSL 설정을 확인하세요."),
+)
+
+
+def diagnose(message: str) -> str:
+    """원인을 한 줄로 바꾼다. 비밀값은 절대 담지 않는다."""
+    low = message.lower()
+    for needle, hint in _HINTS:
+        if needle in low:
+            return hint
+    if "127.0.0.1" in message or "localhost" in message:
+        return "PG_DSN 이 설정되지 않아 로컬 주소로 연결을 시도했습니다. 배포 설정에 PG_DSN 을 넣으세요."
+    return "설정을 확인하세요."
+
+
 def get_service() -> Any | None:
-    """실패해도 예외를 올리지 않는다. 사이드바가 '준비 안 됨'을 보여 주면 된다."""
+    """실패해도 예외를 올리지 않는다. 대신 원인을 남겨 사이드바가 보여 준다."""
     try:
         return _build_service()
     except Exception as exc:                   # noqa: BLE001
-        st.session_state["service_error"] = f"{type(exc).__name__}: {exc}"
+        raw = f"{type(exc).__name__}: {exc}"
+        st.session_state["service_error"] = raw
+        st.session_state["service_hint"] = diagnose(raw)
         return None
 
 
