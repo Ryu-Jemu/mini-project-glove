@@ -2,7 +2,7 @@
 SHELL := /bin/bash
 PY := ./bin/br python
 
-.PHONY: fix-pth sync up down ingest api ui test test-live eval doctor setup
+.PHONY: fix-pth sync up down ingest api ui test test-live test-net eval doctor setup
 fix-pth:            ## macOS UF_HIDDEN 으로 .pth 가 무시되는 문제 해제
 	@chflags nohidden .venv/lib/python3.12/site-packages/*.pth 2>/dev/null || true
 sync: ; uv sync && $(MAKE) fix-pth
@@ -25,6 +25,7 @@ doctor: fix-pth ; $(PY) -m baseball.doctor
 ingest: fix-pth ; $(PY) -m baseball.ingest
 api: fix-pth ; ./bin/br uvicorn baseball.api:app --host 127.0.0.1 --port 8000
 ui: fix-pth ; API_BASE_URL=http://127.0.0.1:8000 ./bin/br streamlit run ui/app.py --server.address 127.0.0.1 --server.port 8501
-test: fix-pth ; ./bin/br pytest -q -m "not live and not db and not llm_judge and not youtube_api"
+test: fix-pth ; ./bin/br pytest -q -m "not live and not db and not llm_judge and not youtube_api and not net"
 test-live: fix-pth ; ./bin/br pytest -q -m live
+test-net: fix-pth ; ./bin/br pytest -q -m net
 eval: fix-pth ; $(PY) evaluation/run_eval.py --all-baselines

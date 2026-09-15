@@ -99,6 +99,7 @@ class _Prepared:
     docs: list[dict[str, Any]]
     context: str
     gate: TurnResult | None = None
+    kbo: list[Any] = field(default_factory=list)
 
 
 def _rule_sources(docs: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -169,10 +170,20 @@ class RagService:
             return _Prepared(r, [], "static", [], "", gate)
 
         latest: list[LatestEntry] = []
+        kbo_entries: list[Any] = []
         freshness = "static"
         if r.kind in {"latest", "mixed"}:
-            freshness, latest = latest_info.route(question, self.settings)
-            if freshness == "phase2_pending":
+            # KBO 주제 태그가 붙었으면 실데이터를 먼저 시도한다. 비면 Phase 1 경로 그대로.
+            if r.topics and self.settings.kbo_data_enabled:
+                from baseball import kbo as kbo_data
+
+                kbo_entries = kbo_data.entries_for(question, r, settings=self.settings)
+            if kbo_entries:
+                freshness = ("live" if any(e.freshness in {"live", "cached"} for e in kbo_entries)
+                             else "snapshot")
+            else:
+                freshness, latest = latest_info.route(question, self.settings)
+            if not kbo_entries and freshness == "phase2_pending":
                 gate = TurnResult(
                     answer=NOT_IN_CONTEXT_REFUSAL, status="phase2_pending", freshness="static",
                     needs_web=True, route=r.to_dict(), llm_called=False, model=model,
@@ -181,31 +192,32 @@ class RagService:
 
         retrieval = self.retriever.retrieve(question, k=6)
         docs = list(retrieval.docs)
-        if latest and r.kind == "latest" and not r.rule_hit:
+        if (latest or kbo_entries) and r.kind == "latest" and not r.rule_hit:
             docs = []          # 순위·일정 같은 질문에 규칙집 조항이 섞이면 모델이 답을 거부한다
         if retrieval.abstain:
-            if not latest:
+            if not latest and not kbo_entries:
                 gate = TurnResult(
                     answer=NOT_IN_CONTEXT_REFUSAL, status="not_in_rulebook", freshness=freshness,
                     route=r.to_dict(), llm_called=False, model=model,
                     sources=_latest_sources(latest), retrieval=retrieval,
                 )
-                return _Prepared(r, latest, freshness, [], "", gate)
+                return _Prepared(r, latest, freshness, [], "", gate, kbo_entries)
             docs = []                      # 규칙집 근거 없음 → 최신정보 블록만 사용
 
         context = format_context(
-            docs, latest,
+            docs, latest, kbo_entries,
             max_tokens=self.settings.context_max_tokens,
             latest_max_tokens=self.settings.latest_context_max_tokens,
+            kbo_max_tokens=self.settings.kbo_context_max_tokens,
         )
         if not context:
             gate = TurnResult(
                 answer=NOT_IN_CONTEXT_REFUSAL, status="not_in_rulebook", freshness=freshness,
                 route=r.to_dict(), llm_called=False, model=model, retrieval=retrieval,
             )
-            return _Prepared(r, latest, freshness, [], "", gate)
+            return _Prepared(r, latest, freshness, [], "", gate, kbo_entries)
 
-        prepared = _Prepared(r, latest, freshness, docs, context)
+        prepared = _Prepared(r, latest, freshness, docs, context, None, kbo_entries)
         prepared.retrieval = retrieval                      # type: ignore[attr-defined]
         return prepared
 
@@ -226,7 +238,7 @@ class RagService:
             route=prepared.route.to_dict(),
             citations=[c.to_dict() for c in found],
             dropped_citations=dropped,
-            sources=_rule_sources(prepared.docs) + _latest_sources(prepared.latest),
+            sources=_rule_sources(prepared.docs) + _latest_sources(prepared.latest) + _kbo_sources(prepared.kbo),
             usage=usage,
             latency_ms=int((time.time() - started) * 1000),
             llm_called=True,
@@ -287,7 +299,7 @@ class RagService:
             return
 
         yield {"event": "status", "data": {"status": "retrieving", "llm_called": True}}
-        sources = _rule_sources(prepared.docs) + _latest_sources(prepared.latest)
+        sources = _rule_sources(prepared.docs) + _latest_sources(prepared.latest) + _kbo_sources(prepared.kbo)
         yield {"event": "sources", "data": {"sources": sources}}
 
         messages = answer_prompt(self.settings.chat_history_max_messages).format_messages(
@@ -335,7 +347,7 @@ class RagService:
             return
 
         yield {"event": "status", "data": {"status": "retrieving", "llm_called": True}}
-        sources = _rule_sources(prepared.docs) + _latest_sources(prepared.latest)
+        sources = _rule_sources(prepared.docs) + _latest_sources(prepared.latest) + _kbo_sources(prepared.kbo)
         yield {"event": "sources", "data": {"sources": sources}}
 
         messages = answer_prompt(self.settings.chat_history_max_messages).format_messages(
@@ -358,6 +370,20 @@ class RagService:
         )
         yield {"event": "final", "data": _final_payload(result)}
         yield {"event": "done", "data": {}}
+
+
+def _kbo_sources(entries: Sequence[Any]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for e in entries:
+        if e.freshness == "unavailable":
+            continue
+        if e.freshness == "stale":
+            status = f"오래된 저장본({e.as_of} 기준)"
+        else:
+            status = {"live": "실시간", "cached": "저장본(최신)"}.get(e.freshness, "기본정보")
+        out.append({"kind": "kbo", "label": e.label, "url": e.source_url,
+                    "as_of": e.as_of, "confidence": status})
+    return out
 
 
 def _usage_of(message: Any) -> dict[str, Any]:

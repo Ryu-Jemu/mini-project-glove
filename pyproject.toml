@@ -45,4 +45,5 @@ markers = [
     "db: 실제 Postgres 컨테이너 필요",
     "llm_judge: LLM 심판 호출(비용 발생)",
     "youtube_api: YouTube Data API 쿼터 소모(Phase 2)",
+    "net: 키 없는 외부 공개 API 호출(네트워크 필요, 비용 없음)",
 ]

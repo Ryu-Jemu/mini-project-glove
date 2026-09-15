@@ -93,7 +93,8 @@ cases:
     category: 실시간
     expect_route: latest
     expect_status_in: [answered, not_in_rulebook, phase2_pending]
-    expect_freshness_in: [web, static]
+    # 실데이터 경로가 생겨 live/snapshot 도 정상 결과다. 라우팅·거부 게이트는 그대로다.
+    expect_freshness_in: [web, static, live, snapshot]
     expected_rule_refs: []
   - id: 14
     question: "오늘 서울 날씨 어때?"

@@ -84,7 +84,7 @@ with st.sidebar:
     st.caption(
         "비공식 개인 학습용 프로젝트입니다. LG 트윈스·(주)LG스포츠·KBO와 무관하며 "
         "구단 로고·워드마크·마스코트·유니폼 디자인을 사용하지 않습니다. "
-        "순위·일정 데이터: 네이버 스포츠, 영상: YouTube."
+        "순위·일정 데이터: 네이버 스포츠, 구단 기본 정보: 위키백과(CC BY-SA 4.0), 영상: YouTube."
     )
 
 for message in st.session_state.messages:

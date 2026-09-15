@@ -120,7 +120,7 @@ Windows 에서는 절차를 그대로 쓸 수 없으므로 WSL2 환경에서 진
    make doctor
    ```
    - `make test` 는 `95 passed` 가 출력되면 정상이다. API 키가 없어도 실행된다.
-   - `make doctor` 는 9줄을 출력한다. `OPENAI`·`PG`·`MinIO`·`Kiwi`·`index`·`prompts` 여섯 줄이 `ok` 이면 정상이다.
+   - `make doctor` 는 10줄을 출력한다. `OPENAI`·`PG`·`MinIO`·`Kiwi`·`index`·`KBO teams`·`prompts` 일곱 줄이 `ok` 이면 정상이다.
    - `Tavily`·`LangSmith`·`YouTube` 는 선택 항목이다. 키를 넣지 않았다면 `absent` 로 표시되며 문제가 아니다.
    - `index` 줄에 `ok` 가 없으면 `make setup` 이 끝까지 진행되지 않은 것이다. `make setup` 을 다시 실행한다.
 
@@ -135,6 +135,7 @@ Windows 에서는 절차를 그대로 쓸 수 없으므로 WSL2 환경에서 진
 | `make api` | 백엔드 실행 |
 | `make ui` | 화면 실행 |
 | `make test` | 테스트 실행 (비용 없음) |
+| `make test-net` | 외부 공개 API 형태 점검 (비용 없음, 네트워크 필요) |
 | `make doctor` | 환경 점검 (비용 없음) |
 | `make down` | 컨테이너 정지 |
 | `make ingest` | 규칙집 자료 준비 (이미 준비되어 있으면 건너뛰며 비용 없음) |

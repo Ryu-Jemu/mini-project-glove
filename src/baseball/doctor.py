@@ -85,6 +85,20 @@ def _youtube(settings: Settings) -> str:
     return f"YouTube key present (format unexpected, {len(raw)} chars) — soft warning"
 
 
+
+def _kbo(_: Settings) -> str:
+    """네트워크를 타지 않는다. make setup 이 상류 장애로 실패하면 안 된다."""
+    try:
+        from baseball.kbo import load_teams, teams_by_code
+
+        meta, codes = load_teams(), teams_by_code()
+        if len(codes) != 10:
+            return f"KBO teams 구단 수 이상 ({len(codes)}팀)"
+        return f"KBO teams ok (10팀, as_of={meta.get('as_of', '?')})"
+    except Exception as exc:                       # noqa: BLE001
+        return f"KBO teams 파일 없음 — 구단 정보 비활성 ({type(exc).__name__})"
+
+
 CHECKS: list[tuple[str, Callable[[Settings], str], bool]] = [
     ("openai", _openai, True),
     ("postgres", _postgres, True),
@@ -94,6 +108,7 @@ CHECKS: list[tuple[str, Callable[[Settings], str], bool]] = [
     ("tavily", _tavily, False),
     ("langsmith", _langsmith, False),
     ("youtube", _youtube, False),
+    ("kbo", _kbo, False),
     ("prompts", _prompts, True),
 ]
 

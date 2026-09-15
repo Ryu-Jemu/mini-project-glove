@@ -72,7 +72,41 @@ def league_regulation_lookup(query: str) -> tuple[str, dict[str, Any]]:
     return (text, artifact)
 
 
-TOOLS = [search_baseball_rules, league_regulation_lookup]
+
+@tool(response_format="content_and_artifact")
+def kbo_data_lookup(query: str) -> tuple[str, dict[str, Any]]:
+    """KBO 리그의 순위·승률·남은 경기 일정·구단 연고지와 홈구장을 조회한다.
+
+    사용 시점: "LG 순위", "두산 남은 경기", "기아 연고지" 처럼 현재 시즌의
+        구단 성적·일정·기본 정보를 묻는 질문.
+    사용하지 말 것: 규칙집 조항(5.09 등)이나 리그 운영 규정(ABS·피치클락)은
+        search_baseball_rules 를 쓴다.
+    Args:
+        query: 사용자 질문 원문.
+    """
+    from baseball import kbo
+    from baseball.context import format_context
+    from baseball.router import kbo_topics
+
+    topics, teams = kbo_topics(query)
+    if not topics:
+        return "KBO 데이터로 답할 수 있는 질문이 아닙니다.", {"sources": [], "retrieved_ids": []}
+
+    class _R:
+        pass
+
+    r = _R()
+    r.topics, r.teams = topics, teams
+    entries = kbo.entries_for(query, r)
+    if not entries:
+        return "KBO 데이터를 가져오지 못했습니다.", {"sources": [], "retrieved_ids": []}
+    text = format_context([], [], entries)
+    sources = [{"kind": "kbo", "label": e.label, "url": e.source_url, "as_of": e.as_of}
+               for e in entries]
+    return text, {"sources": sources, "retrieved_ids": [e.label for e in entries]}
+
+
+TOOLS = [search_baseball_rules, league_regulation_lookup, kbo_data_lookup]
 BY_NAME = {t.name: t for t in TOOLS}
 
 

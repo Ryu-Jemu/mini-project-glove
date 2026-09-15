@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from contextlib import contextmanager
 from typing import Any, Iterator, Sequence
@@ -158,6 +159,33 @@ def ensure_schema(settings: Settings | None = None) -> str:
         )
         conn.commit()
     return SCHEMA_VERSION
+
+
+SNAPSHOT_KEEP = 3
+
+
+def latest_snapshot(conn: psycopg.Connection, kind: str) -> dict[str, Any] | None:
+    """kind 의 가장 최근 저장본 한 건. 없으면 None."""
+    return conn.execute(
+        "SELECT payload, as_of, source_url, fetched_at FROM source_snapshots "
+        "WHERE kind = %s ORDER BY fetched_at DESC LIMIT 1",
+        (kind,),
+    ).fetchone()
+
+
+def put_snapshot(conn: psycopg.Connection, kind: str, payload: Any, *,
+                 as_of: Any = None, source_url: str | None = None,
+                 keep: int = SNAPSHOT_KEEP) -> None:
+    """저장본을 넣고 같은 kind 의 오래된 행을 keep 개만 남기고 지운다."""
+    conn.execute(
+        "INSERT INTO source_snapshots (kind, payload, as_of, source_url) VALUES (%s, %s, %s, %s)",
+        (kind, json.dumps(payload, ensure_ascii=False, default=str), as_of, source_url),
+    )
+    conn.execute(
+        "DELETE FROM source_snapshots WHERE kind = %s AND id NOT IN "
+        "(SELECT id FROM source_snapshots WHERE kind = %s ORDER BY fetched_at DESC LIMIT %s)",
+        (kind, kind, keep),
+    )
 
 
 def reset(settings: Settings | None = None) -> dict[str, int]:

@@ -26,6 +26,7 @@ def _env(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> Non
         return
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("ENABLE_WEB_SEARCH", "off")
+    monkeypatch.setenv("ENABLE_KBO_DATA", "off")
     from baseball.config import get_settings
 
     get_settings.cache_clear()

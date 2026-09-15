@@ -94,6 +94,19 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
+    # --- KBO 데이터 (tunable) ---
+    enable_kbo_data: Literal["on", "off"] = "on"
+    kbo_season_year: int = 0                       # 0 이면 오늘 날짜의 연도를 쓴다
+    kbo_http_timeout_seconds: float = 4.0
+    kbo_standings_ttl_seconds: int = 600
+    kbo_schedule_ttl_seconds: int = 1800
+    kbo_context_max_tokens: int = 1000
+    kbo_schedule_max_games: int = 10
+
+    @property
+    def kbo_data_enabled(self) -> bool:
+        return self.enable_kbo_data == "on"
+
     @property
     def web_search_enabled(self) -> bool:
         if self.enable_web_search == "off":

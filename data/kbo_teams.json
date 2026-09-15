@@ -1,0 +1,167 @@
+{
+  "as_of": "2026-09-15",
+  "source": "ko.wikipedia.org",
+  "license": "CC BY-SA 4.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0/deed.ko",
+  "note": "연고지·홈구장은 ko.wikipedia 각 구단 문서에서 확인했다. 홈구장 약칭은 네이버 스포츠 일정 피드의 구장 최빈값과 대조했다. 창단연도는 전신 구단 승계 해석이 갈려 싣지 않는다.",
+  "teams": [
+    {
+      "code": "LG",
+      "full": "LG 트윈스",
+      "short": "LG",
+      "aliases": [
+        "LG",
+        "엘지",
+        "트윈스",
+        "LG트윈스",
+        "LG 트윈스"
+      ],
+      "hometown": "서울특별시",
+      "stadium": "서울종합운동장 야구장",
+      "stadium_short": "잠실",
+      "source_url": "https://ko.wikipedia.org/wiki/LG_%ED%8A%B8%EC%9C%88%EC%8A%A4"
+    },
+    {
+      "code": "OB",
+      "full": "두산 베어스",
+      "short": "두산",
+      "aliases": [
+        "두산",
+        "베어스",
+        "두산베어스",
+        "두산 베어스"
+      ],
+      "hometown": "서울특별시",
+      "stadium": "서울종합운동장 야구장",
+      "stadium_short": "잠실",
+      "source_url": "https://ko.wikipedia.org/wiki/%EB%91%90%EC%82%B0_%EB%B2%A0%EC%96%B4%EC%8A%A4"
+    },
+    {
+      "code": "WO",
+      "full": "키움 히어로즈",
+      "short": "키움",
+      "aliases": [
+        "키움",
+        "히어로즈",
+        "키움히어로즈",
+        "키움 히어로즈"
+      ],
+      "hometown": "서울특별시",
+      "stadium": "고척스카이돔",
+      "stadium_short": "고척",
+      "source_url": "https://ko.wikipedia.org/wiki/%ED%82%A4%EC%9B%80_%ED%9E%88%EC%96%B4%EB%A1%9C%EC%A6%88"
+    },
+    {
+      "code": "SK",
+      "full": "SSG 랜더스",
+      "short": "SSG",
+      "aliases": [
+        "SSG",
+        "랜더스",
+        "쓱",
+        "SSG랜더스",
+        "SSG 랜더스"
+      ],
+      "hometown": "인천광역시",
+      "stadium": "인천SSG랜더스필드",
+      "stadium_short": "문학",
+      "source_url": "https://ko.wikipedia.org/wiki/SSG_%EB%9E%9C%EB%8D%94%EC%8A%A4"
+    },
+    {
+      "code": "KT",
+      "full": "kt 위즈",
+      "short": "KT",
+      "aliases": [
+        "KT",
+        "케이티",
+        "위즈",
+        "kt위즈",
+        "kt 위즈",
+        "KT위즈"
+      ],
+      "hometown": "경기도 수원시",
+      "stadium": "수원케이티위즈파크",
+      "stadium_short": "수원",
+      "source_url": "https://ko.wikipedia.org/wiki/Kt_%EC%9C%84%EC%A6%88"
+    },
+    {
+      "code": "HH",
+      "full": "한화 이글스",
+      "short": "한화",
+      "aliases": [
+        "한화",
+        "이글스",
+        "한화이글스",
+        "한화 이글스"
+      ],
+      "hometown": "대전광역시",
+      "stadium": "대전한화생명볼파크",
+      "stadium_short": "대전",
+      "source_url": "https://ko.wikipedia.org/wiki/%ED%95%9C%ED%99%94_%EC%9D%B4%EA%B8%80%EC%8A%A4"
+    },
+    {
+      "code": "SS",
+      "full": "삼성 라이온즈",
+      "short": "삼성",
+      "aliases": [
+        "삼성",
+        "라이온즈",
+        "삼성라이온즈",
+        "삼성 라이온즈"
+      ],
+      "hometown": "대구광역시",
+      "stadium": "대구삼성라이온즈파크",
+      "stadium_short": "대구",
+      "source_url": "https://ko.wikipedia.org/wiki/%EC%82%BC%EC%84%B1_%EB%9D%BC%EC%9D%B4%EC%98%A8%EC%A6%88",
+      "stadium_secondary_short": "포항"
+    },
+    {
+      "code": "LT",
+      "full": "롯데 자이언츠",
+      "short": "롯데",
+      "aliases": [
+        "롯데",
+        "자이언츠",
+        "롯데자이언츠",
+        "롯데 자이언츠"
+      ],
+      "hometown": "부산광역시",
+      "stadium": "사직야구장",
+      "stadium_short": "사직",
+      "source_url": "https://ko.wikipedia.org/wiki/%EB%A1%AF%EB%8D%B0_%EC%9E%90%EC%9D%B4%EC%96%B8%EC%B8%A0"
+    },
+    {
+      "code": "HT",
+      "full": "KIA 타이거즈",
+      "short": "KIA",
+      "aliases": [
+        "KIA",
+        "기아",
+        "타이거즈",
+        "KIA타이거즈",
+        "KIA 타이거즈",
+        "기아 타이거즈"
+      ],
+      "hometown": "전남광주통합특별시",
+      "stadium": "광주기아챔피언스필드",
+      "stadium_short": "광주",
+      "source_url": "https://ko.wikipedia.org/wiki/KIA_%ED%83%80%EC%9D%B4%EA%B1%B0%EC%A6%88"
+    },
+    {
+      "code": "NC",
+      "full": "NC 다이노스",
+      "short": "NC",
+      "aliases": [
+        "NC",
+        "엔씨",
+        "다이노스",
+        "NC다이노스",
+        "NC 다이노스"
+      ],
+      "hometown": "경상남도 창원시",
+      "stadium": "창원NC파크",
+      "stadium_short": "창원",
+      "source_url": "https://ko.wikipedia.org/wiki/NC_%EB%8B%A4%EC%9D%B4%EB%85%B8%EC%8A%A4"
+    }
+  ]
+}

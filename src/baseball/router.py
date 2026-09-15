@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
+from functools import lru_cache
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, TypedDict
@@ -42,6 +43,45 @@ LATEST_RE = re.compile(f"(?:{LEAGUE_ONLY_RE.pattern})|(?:{LIVE_WEB_RE.pattern})"
 KEYWORDS_P1: dict[str, re.Pattern[str]] = {"rule": RULE_RE, "latest": LATEST_RE}
 
 
+KboTopic = Literal["standings", "schedule", "team_info", "roster"]
+
+KBO_TOPIC_RE: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("standings", re.compile(r"순위|승률|몇\s*위|선두|1위|꼴찌|게임\s*차|순위표|가을야구")),
+    ("schedule", re.compile(
+        r"일정|남은\s*경기|잔여\s*경기|다음\s*경기|경기\s*일정|몇\s*경기\s*남"
+        r"|오늘.{0,8}경기|내일.{0,8}경기|언제\s*경기|경기\s*언제")),
+    ("team_info", re.compile(r"연고지|본거지|홈\s*구장|구장|창단|구단\s*정보|어느\s*도시|어디\s*연고")),
+    ("roster", re.compile(r"선수\s*명단|로스터|주요\s*선수|타율\s*1위")),
+)
+MAX_TOPICS = 2
+
+
+@lru_cache(maxsize=1)
+def _team_aliases() -> tuple[tuple[str, str], ...]:
+    """(별칭, 구단코드) 를 긴 별칭부터. 파일이 없으면 빈 튜플."""
+    try:
+        from baseball.kbo import teams_by_code
+
+        pairs = [(a, code) for code, t in teams_by_code().items() for a in t.get("aliases", [])]
+    except Exception:                              # noqa: BLE001
+        return ()
+    return tuple(sorted(pairs, key=lambda p: -len(p[0])))
+
+
+def kbo_topics(question: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """질문에서 KBO 주제와 구단 코드를 뽑는다. kind 결정에는 관여하지 않는다."""
+    t = unicodedata.normalize("NFKC", question or "")
+    topics = tuple(name for name, rx in KBO_TOPIC_RE if rx.search(t))[:MAX_TOPICS]
+    teams: list[str] = []
+    upper = t.upper()
+    for alias, code in _team_aliases():
+        if code in teams:
+            continue
+        if alias.upper() in upper:
+            teams.append(code)
+    return topics, tuple(teams)
+
+
 @dataclass(frozen=True)
 class Route:
     kind: RouteKind
@@ -49,6 +89,10 @@ class Route:
     rule_hit: bool
     latest_hit: bool
     domain_hit: bool = False
+    # KBO 데이터 태그. kind 와 직교한다 — kind 는 네 값 그대로이고
+    # to_dict() 도 두 키 그대로라 기존 계약(API 응답·골든셋)이 바뀌지 않는다.
+    topics: tuple[KboTopic, ...] = ()
+    teams: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {"kind": self.kind, "by": self.by}
@@ -83,21 +127,29 @@ def _parse_kind(out: Any) -> str:
         return ""
 
 
+
+def _tags(text: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    try:
+        return kbo_topics(text)
+    except Exception:                              # noqa: BLE001
+        return (), ()
+
+
 def route(question: str, *, llm: Any | None = None, settings: Settings | None = None) -> Route:
     """rule∧latest → mixed / latest / rule / 무매칭 → LLM. llm 은 테스트 주입용."""
     t = unicodedata.normalize("NFKC", question or "")
     r, l = bool(RULE_RE.search(t)), bool(LATEST_RE.search(t))
     d = bool(BASEBALL_DOMAIN_RE.search(t))
     if r and l:
-        return Route("mixed", "keyword", r, l, d)
+        return Route("mixed", "keyword", r, l, d, *_tags(t))
     if l:
-        return Route("latest", "keyword", r, l, d)
+        return Route("latest", "keyword", r, l, d, *_tags(t))
     if r:
-        return Route("rule", "keyword", r, l, d)
+        return Route("rule", "keyword", r, l, d, *_tags(t))
     if d:
         # 구단·리그 고유명사만 있는 질문(예: "LG 트윈스는 어떤 팀이야?")은 규칙집에 답이 없다.
         # 웹 최신정보 경로로 보내고, 웹이 꺼져 있으면 거부 문장으로 떨어진다.
-        return Route("latest", "keyword", r, l, d)
+        return Route("latest", "keyword", r, l, d, *_tags(t))
 
     model = llm if llm is not None else build_router_llm(settings)
     try:
@@ -107,4 +159,6 @@ def route(question: str, *, llm: Any | None = None, settings: Settings | None = 
         kind = ""
     if kind not in VALID_KINDS:
         kind = "rule"                      # 안전 폴백: 규칙집 검색 → 근거 없으면 abstain
-    return Route(kind, "llm", r, l, d)     # type: ignore[arg-type]
+    # off_topic 에는 KBO 태그를 붙이지 않는다. 거부 경로가 데이터 조회로 새지 않도록.
+    tags = ((), ()) if kind == "off_topic" else _tags(t)
+    return Route(kind, "llm", r, l, d, *tags)     # type: ignore[arg-type]
