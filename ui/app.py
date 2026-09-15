@@ -5,6 +5,7 @@ import uuid
 
 import streamlit as st
 
+import gate
 import theme
 from backend import MODE, document_url, readyz, reset_session, stream_answer
 
@@ -27,6 +28,10 @@ st.set_page_config(
     layout="wide", initial_sidebar_state="expanded",
 )
 theme.inject_theme()
+
+# 접근 코드가 설정되어 있으면 통과 전까지 아래를 아무것도 그리지 않는다.
+if not gate.ensure_access():
+    st.stop()
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -79,6 +84,10 @@ with st.sidebar:
         reset_session(st.session_state.session_id)
         st.session_state.messages = []
         st.session_state.session_id = str(uuid.uuid4())
+        st.rerun()
+
+    if gate.gate_enabled() and st.button("잠그기", width="stretch"):
+        gate.lock()
         st.rerun()
 
     st.caption(

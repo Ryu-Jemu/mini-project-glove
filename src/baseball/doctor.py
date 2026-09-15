@@ -99,6 +99,18 @@ def _kbo(_: Settings) -> str:
         return f"KBO teams 파일 없음 — 구단 정보 비활성 ({type(exc).__name__})"
 
 
+
+def _access(settings: Settings) -> str:
+    """값은 출력하지 않는다. 설정 여부와 형식만 본다."""
+    pin = settings.app_access_pin
+    if pin is None:
+        return "접근 코드 없음 — 누구나 사용 가능"
+    raw = pin.get_secret_value()
+    if len(raw) == 4 and raw.isdigit():
+        return "접근 코드 설정됨 (숫자 4자리)"
+    return f"접근 코드 형식 이상 ({len(raw)}자) — 숫자 4자리여야 한다"
+
+
 CHECKS: list[tuple[str, Callable[[Settings], str], bool]] = [
     ("openai", _openai, True),
     ("postgres", _postgres, True),
@@ -109,6 +121,7 @@ CHECKS: list[tuple[str, Callable[[Settings], str], bool]] = [
     ("langsmith", _langsmith, False),
     ("youtube", _youtube, False),
     ("kbo", _kbo, False),
+    ("access", _access, False),
     ("prompts", _prompts, True),
 ]
 

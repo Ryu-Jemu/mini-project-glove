@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     youtube_kbo_api_key: SecretStr | None = None
     tavily_api_key: SecretStr | None = None
     langchain_api_key: SecretStr | None = None
+    app_access_pin: SecretStr | None = None      # UI 접근 코드(숫자 4자리). 없으면 제한 없음
     langchain_tracing_v2: bool = False
     langchain_project: str = "baseball-rules-phase1"
 
