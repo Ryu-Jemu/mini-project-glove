@@ -24,11 +24,30 @@ def _default_base() -> str:
     return "http://127.0.0.1:8000"
 
 
-DEFAULT_BASE = _default_base()
+def configured_base() -> str | None:
+    """백엔드가 '설정되어 있는지'만 본다. 없으면 None (= 단일 프로세스 모드 신호)."""
+    import os
+
+    env = os.getenv("API_BASE_URL")
+    if env:
+        return env.rstrip("/")
+    try:
+        import streamlit as st
+
+        value = st.secrets.get("API_BASE_URL")
+        if value:
+            return str(value).rstrip("/")
+    except Exception:
+        pass
+    return None
+
+
+DEFAULT_BASE = _default_base()          # 하위 호환(모듈 상수). 실제 해석은 각 함수 본문에서 한다.
 TIMEOUT = httpx.Timeout(connect=10.0, read=None, write=10.0, pool=10.0)
 
 
-def readyz(base_url: str = DEFAULT_BASE) -> dict[str, Any] | None:
+def readyz(base_url: str | None = None) -> dict[str, Any] | None:
+    base_url = base_url or _default_base()
     try:
         r = httpx.get(f"{base_url}/readyz", timeout=5.0)
         return r.json() if r.status_code == 200 else None
@@ -36,7 +55,8 @@ def readyz(base_url: str = DEFAULT_BASE) -> dict[str, Any] | None:
         return None
 
 
-def document_url(base_url: str = DEFAULT_BASE) -> str | None:
+def document_url(base_url: str | None = None) -> str | None:
+    base_url = base_url or _default_base()
     try:
         r = httpx.get(f"{base_url}/documents/active/url", timeout=10.0)
         return r.json().get("url") if r.status_code == 200 else None
@@ -44,7 +64,8 @@ def document_url(base_url: str = DEFAULT_BASE) -> str | None:
         return None
 
 
-def reset_session(session_id: str, base_url: str = DEFAULT_BASE) -> None:
+def reset_session(session_id: str, base_url: str | None = None) -> None:
+    base_url = base_url or _default_base()
     try:
         httpx.post(f"{base_url}/sessions/{session_id}/reset", timeout=5.0)
     except Exception:
@@ -52,9 +73,10 @@ def reset_session(session_id: str, base_url: str = DEFAULT_BASE) -> None:
 
 
 def stream_answer(
-    question: str, session_id: str | None = None, base_url: str = DEFAULT_BASE
+    question: str, session_id: str | None = None, base_url: str | None = None
 ) -> Iterator[tuple[str, dict[str, Any]]]:
     """(event, data) 튜플을 순서대로 낸다: route → status → sources → token* → final → done."""
+    base_url = base_url or _default_base()
     payload = {"question": question, "session_id": session_id}
     with httpx.Client(timeout=TIMEOUT) as client:
         with client.stream("POST", f"{base_url}/chat/stream", json=payload) as response:

@@ -6,7 +6,7 @@ import uuid
 import streamlit as st
 
 import theme
-from api_client import DEFAULT_BASE, document_url, readyz, reset_session, stream_answer
+from backend import MODE, document_url, readyz, reset_session, stream_answer
 
 APP_TITLE = "KBO 야구 규칙 도우미"
 PROMPT_SHA = "5ce6f2ca-7407a382"
@@ -60,7 +60,8 @@ with st.sidebar:
         st.markdown(f"● 준비됨 · chunks {ready['document']['chunks']}")
         st.caption(f"{ready['chat_model']} · {ready['prompt_sha']} · web {ready['web_search']}")
     else:
-        st.markdown("○ 준비 안 됨 — 백엔드(127.0.0.1:8000)를 실행하세요")
+        hint = "백엔드(127.0.0.1:8000)를 실행하세요" if MODE == "api" else "색인·데이터베이스 설정을 확인하세요"
+        st.markdown(f"○ 준비 안 됨 — {hint}")
         st.caption(f"prompt {PROMPT_SHA}")
 
     url = document_url()

@@ -100,57 +100,67 @@ class HybridRetriever:
         plan = plan_query(query, self.glossary)
         channels: dict[str, list[str]] = {}
 
-        exact_rows: list[dict[str, Any]] = []
-        if plan.exact_rule_nos:
-            with db.connect(self.settings) as conn:
-                exact_rows = db.by_rule_no(conn, self.document_id, plan.exact_rule_nos)[:EXACT_LIMIT]
-        channels["exact"] = [r["id"] for r in exact_rows]
-
-        dense_rows: list[dict[str, Any]] = []
+        # 임베딩은 DB 커넥션을 열기 전에 끝낸다(원격 DB 연결을 붙잡고 있지 않도록).
         dense_failed = False
+        vector: list[float] | None = None
         try:
             vector = self.embedder.embed_query(query)
-            with db.connect(self.settings) as conn:
-                dense_rows = db.dense_search(conn, self.document_id, vector, DENSE_LIMIT)
         except Exception as exc:          # 임베딩 불가(쿼터·네트워크) → BM25·exact 로 계속
             dense_failed = True
             logging.getLogger(__name__).warning("dense 검색 생략: %s", type(exc).__name__)
-        channels["dense"] = [r["id"] for r in dense_rows]
-        dense_top = float(dense_rows[0]["score"]) if dense_rows else 0.0
 
-        hits = self.lexical.search(query, BM25_LIMIT, extra_terms=plan.bm25_extra)
-        channels["bm25"] = [h.chunk_id for h in hits]
-        bm25_max = hits[0].score if hits else 0.0
-        bm25_ratio = bm25_max / self.lexical.ref_score if self.lexical.ref_score else 0.0
+        exact_rows: list[dict[str, Any]] = []
+        dense_rows: list[dict[str, Any]] = []
+        ranked: list[dict[str, Any]] = []
 
-        abstain = (
-            not exact_rows
-            and (dense_failed or dense_top < self.settings.abstain_dense_threshold)
-            and bm25_ratio < self.settings.abstain_bm25_ratio
-        )
+        # 커넥션은 턴당 한 번만 연다. 원격 DB(예: Neon)에서는 연결 왕복이 지연의 대부분이고,
+        # exact·dense·조항확장이 각자 연결하면 질문마다 왕복이 3배가 된다.
+        with db.connect(self.settings) as conn:
+            if plan.exact_rule_nos:
+                exact_rows = db.by_rule_no(conn, self.document_id, plan.exact_rule_nos)[:EXACT_LIMIT]
+            channels["exact"] = [r["id"] for r in exact_rows]
 
-        pool: dict[str, dict[str, Any]] = {r["id"]: dict(r) for r in dense_rows}
-        for r in exact_rows:
-            pool.setdefault(r["id"], dict(r))
-        for h in hits:
-            if h.chunk_id in self.by_id:
-                pool.setdefault(h.chunk_id, dict(self.by_id[h.chunk_id]))
+            if vector is not None:
+                try:
+                    dense_rows = db.dense_search(conn, self.document_id, vector, DENSE_LIMIT)
+                except Exception as exc:
+                    dense_failed = True
+                    logging.getLogger(__name__).warning("dense 검색 생략: %s", type(exc).__name__)
+            channels["dense"] = [r["id"] for r in dense_rows]
+            dense_top = float(dense_rows[0]["score"]) if dense_rows else 0.0
 
-        weights = {
-            "exact": 1.0,
-            "dense": self.settings.rrf_weight_dense,
-            "bm25": self.settings.rrf_weight_bm25,
-        }
-        fused = rrf_fuse(channels, weights)
-        ranked_ids = sorted(fused, key=lambda i: fused[i], reverse=True)
-        ranked = []
-        for cid in ranked_ids:
-            if cid not in pool:
-                continue
-            doc = pool[cid]
-            doc["score_fused"] = fused[cid]
-            ranked.append(doc)
-        ranked = self._expand_parents(ranked)
+            hits = self.lexical.search(query, BM25_LIMIT, extra_terms=plan.bm25_extra)
+            channels["bm25"] = [h.chunk_id for h in hits]
+            bm25_max = hits[0].score if hits else 0.0
+            bm25_ratio = bm25_max / self.lexical.ref_score if self.lexical.ref_score else 0.0
+
+            abstain = (
+                not exact_rows
+                and (dense_failed or dense_top < self.settings.abstain_dense_threshold)
+                and bm25_ratio < self.settings.abstain_bm25_ratio
+            )
+
+            pool: dict[str, dict[str, Any]] = {r["id"]: dict(r) for r in dense_rows}
+            for r in exact_rows:
+                pool.setdefault(r["id"], dict(r))
+            for h in hits:
+                if h.chunk_id in self.by_id:
+                    pool.setdefault(h.chunk_id, dict(self.by_id[h.chunk_id]))
+
+            weights = {
+                "exact": 1.0,
+                "dense": self.settings.rrf_weight_dense,
+                "bm25": self.settings.rrf_weight_bm25,
+            }
+            fused = rrf_fuse(channels, weights)
+            ranked_ids = sorted(fused, key=lambda i: fused[i], reverse=True)
+            for cid in ranked_ids:
+                if cid not in pool:
+                    continue
+                doc = pool[cid]
+                doc["score_fused"] = fused[cid]
+                ranked.append(doc)
+            ranked = self._expand_parents(ranked, conn)
 
         top_score = max((d.get("score_fused", 0.0) for d in ranked), default=0.0)
         floor = top_score * self.settings.context_min_score_ratio
@@ -169,14 +179,16 @@ class HybridRetriever:
             exact_hits=[r["rule_id"] for r in exact_rows], channels=channels, context_tokens=used,
         )
 
-    def _expand_parents(self, ranked: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """상위 결과가 하위 항목이면 같은 조항 형제를 묶어 조항 단위로 대체한다."""
+    def _expand_parents(self, ranked: list[dict[str, Any]], conn: Any) -> list[dict[str, Any]]:
+        """상위 결과가 하위 항목이면 같은 조항 형제를 묶어 조항 단위로 대체한다.
+
+        conn 은 retrieve() 가 이미 연 커넥션을 재사용한다(원격 DB 왕복 절감).
+        """
         parents = [d["parent_id"] for d in ranked[:PARENT_EXPAND_TOP] if d.get("sub_item") and d.get("parent_id")]
         parents = sorted(set(parents))
         if not parents:
             return ranked
-        with db.connect(self.settings) as conn:
-            sibling_rows = db.siblings(conn, self.document_id, parents)
+        sibling_rows = db.siblings(conn, self.document_id, parents)
         grouped: dict[str, list[dict[str, Any]]] = {}
         for row in sibling_rows:
             grouped.setdefault(row["parent_id"], []).append(dict(row))

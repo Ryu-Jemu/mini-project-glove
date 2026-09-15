@@ -23,7 +23,9 @@ _kiwi: Kiwi | None = None
 def kiwi() -> Kiwi:
     global _kiwi
     if _kiwi is None:
-        _kiwi = Kiwi()
+        # multi.dict 는 위키데이터 다어절 고유명사 사전(12MB)으로 규칙집에는 쓰임이 없다.
+        # 끄면 상주 메모리가 약 65MB 줄어 무료 배포 한도에 여유가 생긴다.
+        _kiwi = Kiwi(load_multi_dict=False)
     return _kiwi
 
 

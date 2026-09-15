@@ -1,10 +1,24 @@
-# Streamlit Community Cloud 전용 의존성.
+# Streamlit Community Cloud 전용 의존성 목록.
 #
-# 이 파일은 엔트리포인트(ui/app.py)와 같은 디렉터리에 있으므로
-# 저장소 루트의 uv.lock 보다 우선한다.
-# (Community Cloud 는 엔트리포인트 디렉터리를 먼저 찾고, 그다음 루트를 찾는다.)
+# 이 파일은 엔트리포인트(ui/app.py) 옆에 있으므로 저장소 루트의 uv.lock 보다 우선한다.
+# Community Cloud 는 엔트리포인트 디렉터리를 먼저 찾고 그다음 루트를 찾는다.
 #
-# UI 는 백엔드 코드를 import 하지 않는 순수 SSE 클라이언트다.
-# kiwipiepy·pymupdf·psycopg·langchain 등은 백엔드에만 필요하므로 여기 넣지 않는다.
+# 배포본은 FastAPI 백엔드 없이 한 프로세스로 동작하므로 답변 경로에 필요한 것만 담는다.
+# 제외한 것과 이유:
+#   fastapi, uvicorn   - 단일 프로세스 모드는 baseball.api 를 import 하지 않는다
+#   pymupdf, minio     - 색인 전용. 색인은 로컬에서만 수행한다
+#   langchain-text-splitters - 청킹 전용
+#   langchain-tavily   - langchain·langgraph 를 끌어와 메모리를 크게 늘린다
+
 streamlit==1.63.0
 httpx==0.28.1
+langchain-core==1.6.3
+langchain-openai==1.6.2
+openai==3.13.0
+tiktoken==0.14.0
+pydantic-settings==2.15.0
+psycopg[binary]==3.3.5
+pgvector==0.5.0
+kiwipiepy==0.23.2
+rank-bm25==0.2.2
+pyyaml==6.0.3

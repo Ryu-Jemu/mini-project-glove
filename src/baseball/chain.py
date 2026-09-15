@@ -312,6 +312,54 @@ class RagService:
         yield {"event": "done", "data": {}}
 
 
+    def stream(
+        self, question: str, session_id: str | None = None, model: str | None = None
+    ) -> Iterator[dict[str, Any]]:
+        """astream() 의 동기 쌍둥이.
+
+        Streamlit 스크립트 러너에는 실행 중인 이벤트 루프가 없어 async 제너레이터를
+        그대로 쓸 수 없다. 이벤트 순서와 페이로드는 astream() 과 동일하다.
+        """
+        started = time.time()
+        model = model or self.settings.openai_chat_model
+        prepared = self.prepare(question, model=model)
+        yield {"event": "route", "data": prepared.route.to_dict()}
+
+        if prepared.gate is not None:
+            result = self._gate_result(prepared.gate, question=question, session_id=session_id, started=started)
+            yield {"event": "status", "data": {"status": result.status, "llm_called": False}}
+            yield {"event": "sources", "data": {"sources": result.sources}}
+            yield {"event": "token", "data": {"text": result.answer}}
+            yield {"event": "final", "data": _final_payload(result)}
+            yield {"event": "done", "data": {}}
+            return
+
+        yield {"event": "status", "data": {"status": "retrieving", "llm_called": True}}
+        sources = _rule_sources(prepared.docs) + _latest_sources(prepared.latest)
+        yield {"event": "sources", "data": {"sources": sources}}
+
+        messages = answer_prompt(self.settings.chat_history_max_messages).format_messages(
+            question=question, context=prepared.context, chat_history=self.history(session_id),
+        )
+        parts: list[str] = []
+        usage: dict[str, Any] = {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
+        for chunk in self.llm(model).stream(messages):
+            piece = chunk.content if isinstance(chunk.content, str) else ""
+            if piece:
+                parts.append(piece)
+                yield {"event": "token", "data": {"text": piece}}
+            chunk_usage = _usage_of(chunk)
+            if chunk_usage.get("output_tokens") or chunk_usage.get("input_tokens"):
+                usage = chunk_usage
+        text = "".join(parts)
+        result = self._finish(
+            prepared, question=question, answer_text=text, usage=usage,
+            model=model, started=started, session_id=session_id,
+        )
+        yield {"event": "final", "data": _final_payload(result)}
+        yield {"event": "done", "data": {}}
+
+
 def _usage_of(message: Any) -> dict[str, Any]:
     meta = getattr(message, "usage_metadata", None) or {}
     details = meta.get("input_token_details") or {}

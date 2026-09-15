@@ -24,7 +24,7 @@ down: ; docker compose down
 doctor: fix-pth ; $(PY) -m baseball.doctor
 ingest: fix-pth ; $(PY) -m baseball.ingest
 api: fix-pth ; ./bin/br uvicorn baseball.api:app --host 127.0.0.1 --port 8000
-ui: fix-pth ; ./bin/br streamlit run ui/app.py --server.address 127.0.0.1 --server.port 8501
+ui: fix-pth ; API_BASE_URL=http://127.0.0.1:8000 ./bin/br streamlit run ui/app.py --server.address 127.0.0.1 --server.port 8501
 test: fix-pth ; ./bin/br pytest -q -m "not live and not db and not llm_judge and not youtube_api"
 test-live: fix-pth ; ./bin/br pytest -q -m live
 eval: fix-pth ; $(PY) evaluation/run_eval.py --all-baselines
