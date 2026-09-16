@@ -8,7 +8,8 @@
 #   fastapi, uvicorn   - 단일 프로세스 모드는 baseball.api 를 import 하지 않는다
 #   pymupdf, minio     - 색인 전용. 색인은 로컬에서만 수행한다
 #   langchain-text-splitters - 청킹 전용
-#   langchain-tavily   - langchain·langgraph 를 끌어와 메모리를 크게 늘린다
+#   (langchain-tavily 는 아예 의존성에서 뺐다. langchain·langgraph 를 끌어와
+#    메모리를 크게 늘리기에, Tavily 는 httpx 로 REST 를 직접 부른다.)
 
 streamlit==1.63.0
 httpx==0.28.1

@@ -11,6 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal, Sequence
 
+import httpx
 import yaml
 
 from baseball import db
@@ -36,6 +37,15 @@ LIVE_WEB_RE = re.compile(
 MAX_SNAPSHOT_ITEMS = 6
 MAX_WEB_RESULTS = 5
 WEB_CACHE_TTL_SECONDS = 6 * 3600
+
+TAVILY_URL = "https://api.tavily.com/search"
+# 실측 응답이 0.8~1.1초라 8초면 넉넉하다. 답변 경로를 오래 붙잡지 않는다.
+TAVILY_TIMEOUT = httpx.Timeout(8.0, connect=3.0)
+# kbo_naver.py 가 robots 정책상 직접 수집을 금지한 곳은 검색 결과에서도 받지 않는다.
+TAVILY_EXCLUDE_DOMAINS = ("namu.wiki",)
+WEB_SNIPPET_MAX_CHARS = 600
+# 관련 결과와 채움용 결과를 가르는 선. 실측으로 쓸 만한 결과는 0.6 이상, 잡음은 0.16 이하였다.
+WEB_MIN_SCORE = 0.5
 
 
 @lru_cache(maxsize=1)
@@ -104,35 +114,109 @@ def _cache_put(settings: Settings, key: str, results: list[dict[str, Any]]) -> N
         log.warning("assistant_cache 저장 실패: %s", exc)
 
 
+class WebSearchError(RuntimeError):
+    """Tavily 호출 실패. web_search 가 잡아서 빈 결과로 낮춘다."""
+
+
 def _extract_results(raw: Any) -> list[dict[str, Any]]:
-    """langchain-tavily 는 결과가 없으면 dict 대신 안내 문자열을 반환한다."""
     if isinstance(raw, dict):
-        return list(raw.get("results", []) or [])
+        return [r for r in (raw.get("results") or []) if isinstance(r, dict)]
     return []
 
 
-def _tavily_search(query: str, settings: Settings) -> list[dict[str, Any]]:
-    """1차: 허용 도메인 제한 검색 → 0건이면 2차: 제한 없이 재시도(출처는 항상 표기)."""
-    from langchain_tavily import TavilySearch
+def _post(body: dict[str, Any], api_key: str, client: httpx.Client | None) -> list[dict[str, Any]]:
+    """키는 Authorization 헤더로만 보낸다. 본문 api_key 필드는 Tavily 가 폐기했고,
+    본문은 캐시·로그에 남을 수 있어 비밀을 담기에 적절하지 않다."""
+    own = client is None
+    c = client or httpx.Client(timeout=TAVILY_TIMEOUT)
+    try:
+        r = c.post(TAVILY_URL, json=body,
+                   headers={"Authorization": f"Bearer {api_key}",
+                            "Content-Type": "application/json"})
+        if r.status_code != 200:
+            raise WebSearchError(f"HTTP {r.status_code}")
+        payload = r.json()
+    except WebSearchError:
+        raise
+    except Exception as exc:                       # 연결 실패·타임아웃·JSON 파손
+        raise WebSearchError(f"{type(exc).__name__}: {exc}") from exc
+    finally:
+        if own:
+            c.close()
+    return _extract_results(payload)
 
+
+def _tavily_search(
+    query: str, settings: Settings, *, client: httpx.Client | None = None
+) -> list[dict[str, Any]]:
+    """도메인 제한 → 무제한 → (news 였다면) general 순으로 최대 세 번 시도한다.
+
+    예전에는 두 시도 모두 topic="news" 로 고정돼 있었다. 그런데 news 와 include_domains 를
+    함께 주면 Tavily 가 0건을 돌려준다(실측). 그래서 1차가 늘 비고 매번 2차로 떨어졌다.
+    시간에 민감한 질문에만 news 를 쓰고, 그 경우에만 general 재시도를 붙인다.
+    news 결과에는 published_date 가 실려 as_of 를 실제 발행일로 채울 수 있다.
+    """
     api_key = settings.tavily_api_key.get_secret_value()      # type: ignore[union-attr]
     domains = settings.tavily_include_domain_list
-    attempts: list[dict[str, Any]] = []
-    if domains:
-        attempts.append({"include_domains": domains})
-    attempts.append({})
-    for extra in attempts:
-        tool = TavilySearch(
-            max_results=MAX_WEB_RESULTS, topic="news", search_depth="basic",
-            tavily_api_key=api_key, **extra,
-        )
-        results = _extract_results(tool.invoke({"query": query}))
+    topic = "news" if LIVE_WEB_RE.search(unicodedata.normalize("NFKC", query)) else "general"
+
+    def body(topic_: str, use_domains: bool) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "query": query,
+            "max_results": MAX_WEB_RESULTS,
+            "search_depth": "basic",
+            "topic": topic_,
+            "exclude_domains": list(TAVILY_EXCLUDE_DOMAINS),
+        }
+        if topic_ == "news":
+            out["include_published_date"] = True
+        if use_domains and domains:
+            out["include_domains"] = domains
+        return out
+
+    attempts = [body(topic, True), body(topic, False)]
+    if topic == "news":
+        attempts.append(body("general", False))
+
+    for attempt in attempts:
+        results = _keep_relevant(_post(attempt, api_key, client))
         if results:
             return results
     return []
 
 
-def web_search(query: str, settings: Settings | None = None) -> list[LatestEntry]:
+def _keep_relevant(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """점수 미달 결과를 버린다.
+
+    Tavily 는 맞는 게 없어도 빈 배열 대신 채움용 결과를 준다. 실측 예로 "야구에서 인필드
+    플라이 규칙" 을 허용 도메인 안에서 찾으면 0.153·0.025·0.024 짜리 영어 어휘 영상과
+    보드게임이 5건 돌아온다. 이걸 성공으로 치면 사다리가 거기서 멈춰 다음 시도를 못 가고,
+    잡음이 그대로 근거 자료로 들어간다. 같은 질문을 무제한으로 찾으면 0.919 가 나온다.
+    """
+    return [r for r in results if float(r.get("score") or 0.0) >= WEB_MIN_SCORE]
+
+
+def _as_of(raw: Any, today: str) -> str:
+    """LatestEntry.as_of 는 YYYY-MM-DD 다. Tavily 는 RFC 822 로 준다.
+
+    "Mon, 24 Aug 2026 00:00:00 GMT" 를 그냥 자르면 "Mon, 24 Au" 가 되어 날짜가 아니게 된다.
+    """
+    text = str(raw or "").strip()
+    if not text:
+        return today
+    if len(text) >= 10 and text[4] == "-" and text[7] == "-":
+        return text[:10]
+    try:
+        from email.utils import parsedate_to_datetime
+
+        return parsedate_to_datetime(text).date().isoformat()
+    except Exception:                                         # noqa: BLE001
+        return today
+
+
+def web_search(
+    query: str, settings: Settings | None = None, *, client: httpx.Client | None = None
+) -> list[LatestEntry]:
     """Tavily 1회 검색. 실패·비활성 시 빈 리스트(예외를 사용자 경로로 전파하지 않는다)."""
     settings = settings or get_settings()
     if not settings.web_search_enabled or settings.tavily_api_key is None:
@@ -144,7 +228,7 @@ def web_search(query: str, settings: Settings | None = None) -> list[LatestEntry
         results = cached
     else:
         try:
-            results = _tavily_search(query, settings)
+            results = _tavily_search(query, settings, client=client)
             if results:                      # 빈 결과는 캐시하지 않는다(일시적 실패 고착 방지)
                 _cache_put(settings, key, results)
         except Exception as exc:
@@ -157,13 +241,16 @@ def web_search(query: str, settings: Settings | None = None) -> list[LatestEntry
         content = (r.get("content") or "").strip()
         if not content:
             continue
+        # 발행일이 있으면 그걸 쓴다. 오늘로 찍으면 오래된 기사가 최신인 척하게 된다.
+        as_of = _as_of(r.get("published_date"), today)
+        score = r.get("score")
         out.append(LatestEntry(
             kind="web",
             label=f"웹 검색: {r.get('title', '제목 없음')}",
-            text=content[:600],
-            as_of=today,
+            text=content[:WEB_SNIPPET_MAX_CHARS],
+            as_of=as_of,
             source_url=r.get("url"),
-            confidence="uncertain",
+            confidence="likely" if isinstance(score, (int, float)) and score >= 0.7 else "uncertain",
         ))
     return out
 

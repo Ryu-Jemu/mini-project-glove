@@ -9,7 +9,6 @@ dependencies = [
     "langchain-core>=1.6.3,<2",
     "langchain-openai>=1.6.2,<2",
     "langchain-text-splitters>=1.1.2,<2",
-    "langchain-tavily>=0.2.18,<0.3",
     "openai>=3.13,<4",
     "fastapi>=0.141.1,<0.142",
     "uvicorn[standard]>=0.53,<0.54",
