@@ -161,3 +161,45 @@ def test_chain_lets_baseball_questions_through(settings, fake_retriever) -> None
     )
     out = service.answer("인필드 플라이가 뭐야?")
     assert out.status == "answered" and out.llm_called is True
+
+
+# --------------------------------------------------------------------------- 맛집 허용
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "잠실 근처 맛집",
+        "대구 맛집 추천해줘",
+        "LG 홈구장 근처 식당 알려줘",
+        "야구장 근처 밥집",
+        "사직 경기 끝나고 먹을 곳",
+        "고척스카이돔 주변 맛집",
+    ],
+)
+def test_venue_anchored_food_questions_pass_for_free(question: str, settings) -> None:
+    """경기가 열리는 구장 주변을 묻는 것은 야구를 보러 가는 일의 일부다."""
+    llm = RecordingLLM({"in_scope": False})
+    r = scope.check(question, llm=llm, settings=settings)
+    assert r.verdict == "in_scope"
+    assert llm.calls == [], "구장·연고지 이름이 있으면 LLM 없이 통과해야 한다"
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["김치찌개 레시피 알려줘", "파스타 만드는 법", "볶음밥 요리 순서", "축구 경기장 맛집"],
+)
+def test_cooking_and_other_sports_are_still_blocked(question: str, settings) -> None:
+    """맛집만 풀었다. 조리법과 타 종목은 그대로 막는다."""
+    llm = RecordingLLM({"in_scope": True})
+    r = scope.check(question, llm=llm, settings=settings)
+    assert r.verdict == "out_of_scope" and r.blocked
+    assert llm.calls == []
+
+
+def test_off_domain_regex_no_longer_lists_restaurants() -> None:
+    """정규식이 되돌아가면 구장 맛집이 다시 우연에 기대게 된다."""
+    pattern = scope.OFF_DOMAIN_RE.pattern
+    for token in ("맛집", "식당", "밥집"):
+        assert token not in pattern
+    for token in ("요리", "레시피", "김치찌개"):
+        assert token in pattern

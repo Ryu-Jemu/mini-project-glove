@@ -136,9 +136,182 @@ def web_search(query: str) -> tuple[str, dict[str, Any]]:
     return (f"{header}\n\n{text}", {"sources": sources, "entries": list(entries)})
 
 
-# 답변 모델에 붙이는 도구. 규칙집·KBO 조회는 이미 턴 앞단에서 끝났으므로 웹만 준다.
+def _when(d: Any) -> str:
+    """날짜를 "9월 13일" 로 적는다.
+
+    "9.13" 으로 적으면 citations.RULE_NO_RE 가 규칙 9.13 인용으로 오인한다(실측).
+    모델이 본문에 그대로 옮겨 적으면 dropped_citations 가 오염된다.
+    """
+    return f"{d.month}월 {d.day}일"
+
+
+def _game_line(game: Any, relation: str) -> str:
+    when = _when(game.game_date)
+    clock_ = game.game_date_time.strftime("%H:%M")
+    place = game.stadium or "구장 미정"
+    if relation == "upcoming":
+        return f"{when} {clock_} {game.away_name} 대 {game.home_name} ({place})"
+    score = f" {game.away_score}-{game.home_score}" if game.status_code == "RESULT" else ""
+    return f"{when} {game.away_name} 대 {game.home_name}{score} ({place})"
+
+
+def _resolve(query: str, settings: Any, *, prefer: str) -> tuple[Any, Any, str, Any]:
+    """질의 -> (경기, 구단, 관계, 구장이름). 도구 내부 연쇄의 공통 앞단이다."""
+    from baseball import clock, kbo
+
+    team = kbo.find_team(query)
+    found = kbo.find_venue(query)
+    venue_name = found[0] if found else None
+    codes: tuple[str, ...] = ()
+    if team is not None:
+        codes = (team["code"],)
+    elif found is not None:
+        codes = found[1]
+
+    snap, _fresh, _as_of = kbo.schedule_snapshot(settings)
+    game, relation = kbo.pick_game(
+        snap, now=clock.now_kst_naive(), codes=codes, venue=venue_name, prefer=prefer)
+    return game, team, relation, venue_name
+
+
+@tool(response_format="content_and_artifact")
+def kbo_schedule_lookup(query: str) -> tuple[str, dict[str, Any]]:
+    """KBO 경기 일정을 질문한 날짜(한국 시간) 기준으로 찾는다.
+
+    사용 시점: 다음 경기·가까운 경기·오늘 경기·어제 경기가 언제 어디서 열리는지 물을 때.
+        구단명이나 구장 이름이 있으면 그 팀·그 구장 경기를 찾는다.
+    사용하지 말 것: 규칙 조항이나 용어의 뜻. 순위·승률(그건 이미 자료에 있다).
+
+    Args:
+        query: 구단명이나 구장 이름을 포함한 짧은 한국어 문구(예: "LG 다음 경기").
+    """
+    from baseball import kbo
+
+    settings = get_settings()
+    if not settings.schedule_tool_enabled:
+        return ("일정 조회를 쓸 수 없습니다.", {"sources": []})
+
+    game, team, relation, _venue = _resolve(query, settings, prefer="upcoming")
+    if game is None:
+        return ("다가오는 경기를 찾지 못했습니다. 비시즌이거나 아직 일정이 나오지 않았습니다. "
+                "다음 시즌 일정이 공개되면 확인할 수 있다고 안내하세요.",
+                {"sources": []})
+
+    from baseball import kbo_naver
+
+    label = "다가오는 경기" if relation == "upcoming" else "가장 최근 끝난 경기"
+    text = f"[KBO {label}]\n{_game_line(game, relation)}"
+    if team is not None:
+        text += f"\n기준 구단: {team['full']} (연고지 {team['hometown']}, 홈구장 {team['stadium']})"
+    sources = [{"kind": "kbo", "label": f"KBO 일정 — {label}", "url": kbo_naver.SOURCE_URL,
+                "as_of": game.game_date.isoformat(), "confidence": "실시간"}]
+    return (text, {"sources": sources, "game_id": game.game_id})
+
+
+@tool(response_format="content_and_artifact")
+def find_restaurants(query: str) -> tuple[str, dict[str, Any]]:
+    """경기가 열리는 구장 주변(연고지)의 맛집을 웹에서 찾는다.
+
+    사용 시점: 경기장 근처에서 먹을 곳·맛집·식당을 물을 때. 구장 이름이 없으면
+        가까운 경기를 먼저 찾아 그 홈구장 주변으로 찾는다.
+    사용하지 말 것: 음식의 조리법이나 야구와 무관한 지역의 맛집.
+
+    Args:
+        query: 구장·구단·지역 이름이 있으면 함께 넣는다(예: "잠실 근처 맛집").
+    """
+    from baseball import kbo, places
+
+    settings = get_settings()
+    if not settings.places_enabled:
+        return ("맛집 검색을 쓸 수 없습니다.", {"sources": []})
+
+    team = kbo.find_team(query)
+    found = kbo.find_venue(query)
+    stadium = stadium_short = None
+    game = None
+    if found is not None:
+        stadium_short = found[0]
+        code = (team or {}).get("code") or found[1][0]
+        info = kbo.teams_by_code().get(code) or {}
+        stadium = info.get("stadium") or stadium_short
+    elif team is not None:
+        stadium, stadium_short = team.get("stadium"), team.get("stadium_short")
+    else:
+        # 도구 내부 연쇄 — 구장이 안 적혔으면 가까운 경기의 홈구장을 쓴다.
+        game, _team, _rel, _v = _resolve(query, settings, prefer="upcoming")
+        if game is not None:
+            info = kbo.teams_by_code().get(game.home_code) or {}
+            stadium, stadium_short = info.get("stadium"), info.get("stadium_short")
+
+    if not stadium or not stadium_short:
+        return ("어느 구장 근처인지 알 수 없어 맛집을 찾지 못했습니다. "
+                "구단이나 구장 이름을 함께 물어봐 달라고 안내하세요.", {"sources": []})
+
+    entries, cards, media = places.search(
+        stadium=stadium, stadium_short=stadium_short, settings=settings)
+    if not entries:
+        return (f"{stadium_short} 주변 맛집 정보를 찾지 못했습니다.", {"sources": []})
+
+    head = f"[{stadium_short} 주변 맛집 {len(cards)}건]"
+    if game is not None:
+        head = f"[{_when(game.game_date)} {game.away_name} 대 {game.home_name} 경기 · {head[1:]}"
+    text = head + "\n\n" + format_context(
+        [], entries, latest_max_tokens=get_settings().latest_context_max_tokens)
+    sources = [{"kind": "place", "label": e.label, "url": e.source_url,
+                "as_of": e.as_of, "confidence": e.confidence}
+               for e in entries if e.source_url]
+    return (text, {"sources": sources, "places": cards, "media": media})
+
+
+@tool(response_format="content_and_artifact")
+def find_game_highlight(query: str) -> tuple[str, dict[str, Any]]:
+    """특정 경기의 하이라이트 영상을 찾아 채팅에서 재생할 수 있게 한다.
+
+    사용 시점: 경기 하이라이트·다시 보기·명장면 영상을 물을 때.
+    사용하지 말 것: 경기 결과나 기록 자체(그건 일정·순위 자료가 답이다).
+    찾은 영상의 제목과 주소는 화면에 그대로 표시되므로 본문에 옮겨 적지 않는다.
+
+    Args:
+        query: 구단명과 시점을 담은 짧은 한국어 문구(예: "어제 LG 경기 하이라이트").
+    """
+    from baseball import highlights
+
+    settings = get_settings()
+    if not settings.highlights_enabled:
+        return ("하이라이트 검색을 쓸 수 없습니다.", {"sources": []})
+
+    game, _team, relation, _venue = _resolve(query, settings, prefer="last_finished")
+    if game is None:
+        return ("어느 경기의 하이라이트인지 찾지 못했습니다.", {"sources": []})
+    if relation != "last_finished":
+        return (f"{_when(game.game_date)} 경기는 아직 열리지 않아 하이라이트가 없습니다.",
+                {"sources": []})
+
+    entries, media = highlights.find(
+        game_date=game.game_date, home_name=game.home_name, away_name=game.away_name,
+        settings=settings)
+    if not entries:
+        return (f"{_game_line(game, relation)} 경기의 YouTube 하이라이트를 찾지 못했습니다. "
+                f"찾지 못했다는 사실을 그대로 알리고, 없는 영상을 지어내지 마세요.",
+                {"sources": []})
+
+    entry = entries[0]
+    sources = [{"kind": "video", "label": entry.label, "url": entry.source_url,
+                "as_of": entry.as_of, "confidence": "실시간"}]
+    return (f"[{entry.label}]\n{entry.text}", {"sources": sources, "media": media})
+
+
+# 답변 모델에 붙이는 도구. 규칙집 조회는 이미 턴 앞단에서 끝났다.
+# 게이트는 도구마다 따로 본다 — 예전에는 전부 web_search_enabled 하나에 묶여 있어
+# Tavily 를 끄면 일정 조회까지 함께 죽었다.
 ANSWER_TOOLS = [web_search]
-TOOLS = [search_baseball_rules, league_regulation_lookup, kbo_data_lookup, web_search]
+OPTIONAL_TOOLS: tuple[tuple[str, Any], ...] = (
+    ("schedule_tool_enabled", kbo_schedule_lookup),
+    ("places_enabled", find_restaurants),
+    ("highlights_enabled", find_game_highlight),
+)
+TOOLS = [search_baseball_rules, league_regulation_lookup, kbo_data_lookup, web_search,
+         kbo_schedule_lookup, find_restaurants, find_game_highlight]
 BY_NAME = {t.name: t for t in TOOLS}
 
 

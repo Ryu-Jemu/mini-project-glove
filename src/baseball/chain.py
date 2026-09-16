@@ -261,12 +261,22 @@ class RagService:
         return build_structured_llm(model, self.settings, tools=tools, tool_choice=tool_choice)
 
     def answer_tools(self) -> list[Any]:
-        """답변 모델에 붙일 도구. 웹이 꺼져 있거나 라운드가 0 이면 붙이지 않는다."""
-        if not self.settings.web_search_enabled or self.settings.max_tool_rounds <= 0:
-            return []
-        from baseball.tools import ANSWER_TOOLS
+        """답변 모델에 붙일 도구. 게이트는 도구마다 따로 본다.
 
-        return list(ANSWER_TOOLS)
+        라운드가 0 이면 어떤 도구도 부를 수 없으므로 전부 뗀다. web_search 만
+        web_search_enabled 를 보고, 나머지는 각자의 플래그를 본다. 예전에는 전부
+        하나에 묶여 있어 Tavily 를 끄면 일정 조회까지 함께 죽었다.
+
+        주의: 이 목록이 비었는지 여부가 prepare() 3단계의 거부 판정(can_tool)도
+        좌우한다. 도구를 늘리면 근거 없는 질문의 거부 동작이 함께 바뀐다.
+        """
+        if self.settings.max_tool_rounds <= 0:
+            return []
+        from baseball.tools import ANSWER_TOOLS, OPTIONAL_TOOLS
+
+        tools = list(ANSWER_TOOLS) if self.settings.web_search_enabled else []
+        tools += [t for flag, t in OPTIONAL_TOOLS if getattr(self.settings, flag, False)]
+        return tools
 
     def _run_tool(self, call: dict[str, Any], tools: Sequence[Any]) -> tuple[Any, dict[str, Any]]:
         """도구 하나를 돌린다. 어떤 실패도 사용자 경로로 올리지 않는다."""

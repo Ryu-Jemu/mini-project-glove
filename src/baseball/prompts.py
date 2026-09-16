@@ -14,7 +14,7 @@ from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 PROMPT_DIR = Path(__file__).resolve().parents[2] / "prompts"
-SYSTEM_SHA256 = "13a28529f2539dd3577aa71290084108e2ec392cd4f374d933c65ec5b0c18980"
+SYSTEM_SHA256 = "1e1e599e6d80fe26f15fe0df5116a3e22526adf980d776395ef7c32c2aa1462d"
 HUMAN_SHA256 = "718e8ea13c330d9247affd12c14eaa140049f80f16d79bc915d6b35e3a2ac705"
 
 OFF_TOPIC_REFUSAL = "죄송하지만 저는 야구와 관련된 질문에 대해서만 답변할 수 있습니다."
@@ -37,7 +37,7 @@ def read_verbatim(name: str, expected_sha256: str) -> str:
 
 SYSTEM_TEXT = read_verbatim("system_prompt.txt", SYSTEM_SHA256)
 HUMAN_TEXT = read_verbatim("human_prompt.txt", HUMAN_SHA256)
-PROMPT_SHA = f"{SYSTEM_SHA256[:8]}-{HUMAN_SHA256[:8]}"       # "13a28529-718e8ea1"
+PROMPT_SHA = f"{SYSTEM_SHA256[:8]}-{HUMAN_SHA256[:8]}"       # "1e1e599e-718e8ea1"
 
 
 @lru_cache(maxsize=4)
