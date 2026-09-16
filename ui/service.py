@@ -36,8 +36,10 @@ _SECRET_KEYS = (
     "APP_ACCESS_PIN",
 )
 
+# 브랜치 이름이 주소에 박혀 있다. main 을 가리키던 동안 그 브랜치는 PDF 가 없는 별개
+# 프로젝트여서 사이드바 링크가 404 였다. 배포 브랜치가 바뀌면 RULEBOOK_PDF_URL 시크릿으로 덮는다.
 RULEBOOK_URL = (
-    "https://github.com/Ryu-Jemu/mini-project-glove/blob/main/"
+    "https://github.com/Ryu-Jemu/mini-project-glove/blob/develop/"
     "data/2026_%EC%95%BC%EA%B5%AC%EA%B7%9C%EC%B9%99.pdf"
 )
 

@@ -97,3 +97,45 @@ def test_app_title_constant() -> None:
     for artboard in ["Main.dc.html", "Sidebar.dc.html"]:
         text = (ROOT / "design" / "canvas" / artboard).read_text(encoding="utf-8")
         assert "KBO 야구 규칙 도우미" in text
+
+
+def test_rulebook_url_points_at_a_branch_that_has_the_pdf() -> None:
+    """주소에 브랜치 이름이 박혀 있다.
+
+    한동안 main 을 가리켰는데 그 브랜치는 PDF 가 없는 별개 프로젝트라 사이드바의
+    "원문 PDF 열기" 가 404 였다. 아무도 이걸 잡지 못했다.
+    """
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ui"))
+    import service
+
+    assert "/blob/develop/" in service.RULEBOOK_URL
+    assert service.RULEBOOK_URL.endswith(".pdf")
+    assert "/blob/main/" not in service.RULEBOOK_URL
+
+
+def test_rulebook_url_is_overridable_by_secret(monkeypatch) -> None:
+    """배포 브랜치가 바뀌면 소스를 고치지 않고 시크릿으로 덮는다."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ui"))
+    import service
+
+    monkeypatch.setenv("RULEBOOK_PDF_URL", "https://example.com/a.pdf")
+    assert service.document_url() == "https://example.com/a.pdf"
+    monkeypatch.delenv("RULEBOOK_PDF_URL")
+    assert service.document_url() == service.RULEBOOK_URL
+
+
+def test_rulebook_pdf_url_reaches_the_deploy(monkeypatch) -> None:
+    """시크릿 화이트리스트에 없으면 Cloud 에서 조용히 무시된다."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ui"))
+    import service
+
+    assert "RULEBOOK_PDF_URL" in service._SECRET_KEYS
