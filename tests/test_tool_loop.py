@@ -90,9 +90,12 @@ def web(monkeypatch: pytest.MonkeyPatch):
         def __init__(self) -> None:
             self.queries: list[str] = []
             self.results: list[LatestEntry] = []
+            self.per_query: dict[str, list[LatestEntry]] = {}
 
         def __call__(self, query: str, settings=None, *, client=None) -> list[LatestEntry]:
             self.queries.append(query)
+            if self.per_query:
+                return list(self.per_query.get(query, []))
             return list(self.results)
 
     rec = Recorder()
@@ -100,9 +103,9 @@ def web(monkeypatch: pytest.MonkeyPatch):
     return rec
 
 
-def _entry() -> LatestEntry:
-    return LatestEntry(kind="web", label="웹 검색: 연합뉴스", text="박해민은 LG 트윈스 소속이다.",
-                       as_of="2026-09-07", source_url="https://example.com/1", confidence="likely")
+def _entry(n: int = 1) -> LatestEntry:
+    return LatestEntry(kind="web", label=f"웹 검색: 연합뉴스 {n}", text="박해민은 LG 트윈스 소속이다.",
+                       as_of="2026-09-07", source_url=f"https://example.com/{n}", confidence="likely")
 
 
 # --------------------------------------------------------------------------- 정상 경로
@@ -163,7 +166,7 @@ def test_last_round_forbids_further_tool_calls(web) -> None:
 
 
 def test_two_rounds_are_allowed(web) -> None:
-    web.results = [_entry()]
+    web.per_query = {"박해민 소속": [_entry(1)], "박해민 생년월일": [_entry(2)]}
     seen: list[dict[str, Any]] = []
     out = _service(
         _web_on(max_tool_rounds=2),
@@ -261,3 +264,32 @@ def test_tool_messages_never_enter_session_history(web) -> None:
 
     history = service.history("s1")
     assert [m.type for m in history] == ["human", "ai"]
+
+
+def test_repeated_query_does_not_search_twice(web) -> None:
+    """모델이 원하는 값을 못 찾으면 같은 검색어를 되풀이한다. 실측으로 확인한 행동이다.
+
+    결과가 같으므로 왕복만 낭비되고 출처가 중복된다. 두 번째는 나가지 않는다.
+    """
+    web.results = [_entry()]
+    out = _service(
+        _web_on(max_tool_rounds=2),
+        [_tool_call("박해민 생년월일"), _tool_call("박해민 생년월일", "call_2"), _final()],
+        [],
+    ).answer("박해민 생년월일")
+
+    assert web.queries == ["박해민 생년월일"]          # 한 번만 실제로 나갔다
+    assert [s["kind"] for s in out.sources] == ["web"]  # 출처도 하나뿐이다
+    assert out.status == "answered"
+
+
+def test_same_document_from_two_queries_is_shown_once(web) -> None:
+    web.per_query = {"질의 A": [_entry(1)], "질의 B": [_entry(1)]}
+    out = _service(
+        _web_on(max_tool_rounds=2),
+        [_tool_call("질의 A"), _tool_call("질의 B", "call_2"), _final()],
+        [],
+    ).answer("박해민")
+
+    assert web.queries == ["질의 A", "질의 B"]         # 서로 다른 질의라 둘 다 나갔다
+    assert len(out.sources) == 1                        # 같은 URL 이라 한 번만 보여 준다

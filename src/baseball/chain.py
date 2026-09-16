@@ -379,6 +379,7 @@ class RagService:
         spent = {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
         sources: list[dict[str, Any]] = []
         calls: list[dict[str, Any]] = []
+        asked: set[str] = set()
         max_rounds = self.settings.max_tool_rounds if tools else 0
 
         for round_no in range(max_rounds + 1):
@@ -397,6 +398,11 @@ class RagService:
                 raw, tool_calls = _with_call_ids(raw, tool_calls)
                 messages.append(raw)          # 턴마다 새로 만든 리스트다. 고정 프롬프트는 건드리지 않는다
                 for call in tool_calls:
+                    key = _call_key(call)
+                    if key in asked:
+                        messages.append(_repeat_message(call))
+                        continue
+                    asked.add(key)
                     msg, artifact = self._run_tool(call, tools)
                     messages.append(msg)
                     found = list(artifact.get("sources", []))
@@ -427,6 +433,7 @@ class RagService:
         spent = {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
         sources: list[dict[str, Any]] = []
         calls: list[dict[str, Any]] = []
+        asked: set[str] = set()
         max_rounds = self.settings.max_tool_rounds if tools else 0
 
         for round_no in range(max_rounds + 1):
@@ -444,6 +451,11 @@ class RagService:
                 raw, tool_calls = _with_call_ids(raw, tool_calls)
                 messages.append(raw)
                 for call in tool_calls:
+                    key = _call_key(call)
+                    if key in asked:
+                        messages.append(_repeat_message(call))
+                        continue
+                    asked.add(key)
                     msg, artifact = await self._arun_tool(call, tools)
                     messages.append(msg)
                     found = list(artifact.get("sources", []))
@@ -630,7 +642,7 @@ class RagService:
         usage["cost_usd"] = round(_cost(model, usage), 6)
 
         # 도구가 가져온 근거는 prepared 에 없다. 여기서 합치지 않으면 화면에도 API 에도 안 보인다.
-        tool_sources = list(extra_sources)
+        tool_sources = _dedupe_sources(extra_sources)
         sources = (_rule_sources(prepared.docs) + _latest_sources(prepared.latest)
                    + _kbo_sources(prepared.kbo) + tool_sources)
         if prepared.knowledge_only and not tool_sources:
@@ -820,6 +832,24 @@ def _token_pieces(gen: _Generated) -> list[str]:
     return [b if i == last else b + "\n\n" for i, b in enumerate(gen.blocks)]
 
 
+def _call_key(call: dict[str, Any]) -> str:
+    args = call.get("args") or {}
+    return f"{call.get('name', '')}|{str(args.get('query', '')).strip()}"
+
+
+def _repeat_message(call: dict[str, Any]) -> Any:
+    """같은 검색어를 또 부르면 실제로 나가지 않고 그 사실을 알린다.
+
+    모델이 원하는 값을 못 찾으면 같은 질의를 되풀이하는 경향이 있다. 결과가 같으므로
+    왕복만 낭비되고 출처가 중복된다. 다른 검색어를 쓰거나 아는 범위에서 답하라고 돌려준다.
+    """
+    return ToolMessage(
+        content="같은 검색어로 이미 검색했습니다. 결과는 위에 있습니다. "
+                "다른 검색어를 쓰거나, 찾은 내용만으로 답하세요.",
+        tool_call_id=call["id"], name=call.get("name") or "unknown",
+    )
+
+
 def _with_call_ids(raw: Any, tool_calls: list[dict[str, Any]]) -> tuple[Any, list[dict[str, Any]]]:
     """id 가 없는 도구 호출에 번호를 붙인다.
 
@@ -836,6 +866,19 @@ def _with_call_ids(raw: Any, tool_calls: list[dict[str, Any]]) -> tuple[Any, lis
     except Exception:                                   # noqa: BLE001  가짜 모델 등
         pass
     return raw, fixed
+
+
+def _dedupe_sources(sources: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """같은 URL 을 두 번 보여 주지 않는다. 라운드가 겹치면 같은 문서가 다시 온다."""
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for src in sources:
+        key = src.get("url") or src.get("label") or ""
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(src)
+    return out
 
 
 def _merge_usage(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
