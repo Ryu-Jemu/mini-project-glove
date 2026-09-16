@@ -112,8 +112,14 @@ def check(doc: AnswerDoc, retrieved: Sequence[dict[str, Any]] = ()) -> list[Issu
             issues.append(Issue("REFUSAL_INSIDE_ANSWER",
                                 f"{path} 에 거부 문장이 섞여 있다"))
             break
-    if len(_norm(doc.headline)) < MIN_HEADLINE_CHARS:
-        issues.append(Issue("EMPTY_HEADLINE", "headline 이 비었거나 너무 짧다"))
+    # 비어 있는 것과 짧은 것은 다르다. "9명입니다" 는 다섯 자지만 완전한 답이다.
+    # 둘을 한 코드로 묶어 두면 정답이 거부 문장으로 강등된다(chain 이 블로킹 코드를 그렇게 쓴다).
+    head = _norm(doc.headline)
+    if not head:
+        issues.append(Issue("EMPTY_HEADLINE", "headline 이 비었다"))
+    elif len(head) < MIN_HEADLINE_CHARS:
+        issues.append(Issue("SHORT_HEADLINE",
+                            f"headline 이 {len(head)}자다({MIN_HEADLINE_CHARS}자 이상 기대)"))
 
     injected = [p for p, t in _text_fields(doc) if t and _MD_INJECT_RE.search(t)]
     if injected:

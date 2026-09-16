@@ -39,9 +39,17 @@ def test_refusal_sentence_is_found_in_nested_points() -> None:
 
 
 def test_empty_headline_blocks() -> None:
-    issues = check(_doc(headline="짧다"), [make_doc()])
+    issues = check(_doc(headline="   "), [make_doc()])
     assert "EMPTY_HEADLINE" in codes(issues)
     assert blocking(issues) is True
+
+
+def test_short_headline_warns_but_does_not_block() -> None:
+    """"9명입니다" 는 다섯 자지만 완전한 답이다. 이걸 막으면 정답이 거부로 바뀐다."""
+    issues = check(_doc(headline="9명입니다"), [make_doc()])
+    assert "SHORT_HEADLINE" in codes(issues)
+    assert "EMPTY_HEADLINE" not in codes(issues)
+    assert blocking(issues) is False
 
 
 def test_only_two_codes_are_blocking() -> None:
