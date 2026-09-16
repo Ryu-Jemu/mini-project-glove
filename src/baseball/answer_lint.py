@@ -75,12 +75,23 @@ def _backed_refs(retrieved: Sequence[dict[str, Any]]) -> set[str]:
     return backing
 
 
+def _rule_like(ref: str) -> bool:
+    """규칙 번호 형태인 것만 규칙 인용으로 센다.
+
+    evidence 는 이제 웹 출처나 일반 지식 표시도 담는다("2026-09-07 기준 … 출처: 연합뉴스").
+    그걸 규칙 인용으로 세면 근거를 제대로 밝힌 답변마다 경고가 붙어 신호가 의미를 잃는다.
+    rule_ref 는 규칙 전용 필드라 형태와 무관하게 전부 센다.
+    """
+    token = _norm(ref)
+    return bool(_RULE_NO_RE.match(token) or _DEF_RE.match(token))
+
+
 def _claimed_refs(doc: AnswerDoc) -> list[str]:
-    refs = list(doc.evidence)
+    refs = [e for e in doc.evidence if _rule_like(e)]
     for group in ("points", "variations"):
         refs += [p.rule_ref for p in getattr(doc, group) if p.rule_ref]
     for sub in doc.sub_answers:
-        refs += list(sub.evidence)
+        refs += [e for e in sub.evidence if _rule_like(e)]
         refs += [p.rule_ref for p in sub.points if p.rule_ref]
     return refs
 

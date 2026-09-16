@@ -138,3 +138,23 @@ def test_hedging_is_no_longer_flagged() -> None:
     doc = _doc(why="일반적으로 그렇게 봅니다.", headline="일반적으로 아홉 명이 뜁니다.")
     assert "HEDGE" not in codes(check(doc, [make_doc()]))
     assert "HEDGE" not in codes(check(doc, [make_doc()], knowledge_only=True))
+
+
+def test_web_citation_in_evidence_is_not_a_rule_claim() -> None:
+    """evidence 는 이제 웹 출처도 담는다. 그걸 규칙 인용으로 세면 오탐이 된다.
+
+    실제로 "박해민 어디 팀 소속이야?" 가 연합뉴스를 근거로 정확히 답했는데도
+    UNBACKED_RULE_REF 가 붙었다.
+    """
+    web_only = {
+        "evidence": ["2026-09-07 기준, 박해민은 LG 소속이다. 출처: 연합뉴스"],
+        "points": [_point("소속 팀", "박해민은 LG 트윈스에서 뛰고 있습니다."),
+                   _point("출처", "연합뉴스 기사로 확인했습니다.")],
+    }
+    assert "UNBACKED_RULE_REF" not in codes(check(_doc(**web_only), [make_doc()]))
+    assert "UNBACKED_RULE_REF" not in codes(check(_doc(**web_only), [], knowledge_only=True))
+
+
+def test_real_rule_numbers_are_still_checked() -> None:
+    assert "UNBACKED_RULE_REF" in codes(check(_doc(evidence=["9.99"]), [make_doc()]))
+    assert "UNBACKED_RULE_REF" in codes(check(_doc(evidence=["5.09"]), [], knowledge_only=True))
