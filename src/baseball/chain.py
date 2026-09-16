@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
+import unicodedata
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Iterable, Iterator, Sequence
@@ -169,12 +170,14 @@ class RagService:
     def __init__(
         self, settings: Settings, retriever: Any, *,
         llm: Any | None = None, router_llm: Any | None = None, scope_llm: Any | None = None,
+        web_client: Any | None = None,
     ) -> None:
         self.settings = settings
         self.retriever = retriever
         self._llm = llm
         self._router_llm = router_llm
         self._scope_llm = scope_llm
+        self._web_client = web_client
         self.sessions: dict[str, deque[BaseMessage]] = {}
 
     @classmethod
@@ -331,8 +334,9 @@ class RagService:
         latest: list[LatestEntry] = []
         kbo_entries: list[Any] = []
         freshness = "static"
+
+        # 0단계 — 가진 데이터. KBO 실데이터와 리그 규정 스냅샷은 공짜이고 확실하다.
         if r.kind in {"latest", "mixed"}:
-            # KBO 주제 태그가 붙었으면 실데이터를 먼저 시도한다. 비면 Phase 1 경로 그대로.
             if r.topics and self.settings.kbo_data_enabled:
                 from baseball import kbo as kbo_data
 
@@ -341,27 +345,46 @@ class RagService:
                 freshness = ("live" if any(e.freshness in {"live", "cached"} for e in kbo_entries)
                              else "snapshot")
             else:
-                freshness, latest = latest_info.route(question, self.settings)
-            if not kbo_entries and freshness == "phase2_pending":
+                snapshot = latest_info.match_snapshot(question)
+                if snapshot:
+                    latest, freshness = list(snapshot), "snapshot"
+
+        # 1단계 — 규칙집. 이게 1차 근거다.
+        retrieval = self.retriever.retrieve(question, k=6)
+        docs = list(retrieval.docs)
+        if retrieval.abstain:
+            # 근거가 약하다는 뜻이지 거부하라는 뜻이 아니다. 아래 단계가 받는다.
+            docs = []
+
+        # 2단계 — 웹 검색. 규칙집이 빈손일 때만 나간다.
+        if not docs and not kbo_entries and not latest and self.settings.web_search_enabled:
+            web = latest_info.web_search(question, self.settings, client=self._web_client)
+            if web:
+                latest, freshness = web, "web"
+
+        # 순위·일정 질문에 규칙집 조항이 섞이면 모델이 답을 거부한다. 웹 단계 뒤에 판단해야
+        # 2단계가 채운 자료까지 포함해 같은 규칙이 걸린다.
+        if (latest or kbo_entries) and r.kind == "latest" and not r.rule_hit:
+            docs = []
+
+        # 3단계 — 어디에서도 근거를 못 찾았다.
+        if not docs and not latest and not kbo_entries:
+            needs_live = bool(
+                latest_info.LIVE_WEB_RE.search(unicodedata.normalize("NFKC", question))
+            )
+            if r.kind in {"latest", "mixed"} and needs_live:
+                # 실시간 정보가 필요한데 웹 경로가 닫혀 있거나 빈손이다.
                 gate = TurnResult(
                     answer=NOT_IN_CONTEXT_REFUSAL, status="phase2_pending", freshness="static",
                     needs_web=True, route=r.to_dict(), llm_called=False, model=model,
+                    retrieval=retrieval,
                 )
-                return _Prepared(r, [], "static", [], "", gate)
-
-        retrieval = self.retriever.retrieve(question, k=6)
-        docs = list(retrieval.docs)
-        if (latest or kbo_entries) and r.kind == "latest" and not r.rule_hit:
-            docs = []          # 순위·일정 같은 질문에 규칙집 조항이 섞이면 모델이 답을 거부한다
-        if retrieval.abstain:
-            if not latest and not kbo_entries:
+            else:
                 gate = TurnResult(
                     answer=NOT_IN_CONTEXT_REFUSAL, status="not_in_rulebook", freshness=freshness,
-                    route=r.to_dict(), llm_called=False, model=model,
-                    sources=_latest_sources(latest), retrieval=retrieval,
+                    route=r.to_dict(), llm_called=False, model=model, retrieval=retrieval,
                 )
-                return _Prepared(r, latest, freshness, [], "", gate, kbo_entries)
-            docs = []                      # 규칙집 근거 없음 → 최신정보 블록만 사용
+            return _Prepared(r, [], freshness, [], "", gate, kbo_entries)
 
         context = format_context(
             docs, latest, kbo_entries,
