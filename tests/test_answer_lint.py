@@ -54,7 +54,7 @@ def test_short_headline_warns_but_does_not_block() -> None:
 
 def test_only_two_codes_are_blocking() -> None:
     assert BLOCKING_CODES == {"REFUSAL_INSIDE_ANSWER", "EMPTY_HEADLINE"}
-    assert Issue("HEDGE", "x").blocking is False
+    assert Issue("SHORT_HEADLINE", "x").blocking is False
 
 
 # --- 경고 --------------------------------------------------------------------
@@ -74,10 +74,6 @@ def test_bullet_count_out_of_range() -> None:
     assert "BULLET_COUNT" in codes(check(_doc(points=[]), [make_doc()]))
     many = [_point(f"라벨{i}", f"충분히 긴 설명입니다 {i}", "5.09") for i in range(6)]
     assert "BULLET_COUNT" in codes(check(_doc(points=many), [make_doc()]))
-
-
-def test_hedge_phrases_forbidden_by_the_system_prompt() -> None:
-    assert "HEDGE" in codes(check(_doc(why="일반적으로 그렇게 봅니다."), [make_doc()]))
 
 
 def test_unbacked_reference() -> None:
@@ -133,8 +129,12 @@ def test_knowledge_only_rejects_every_rule_reference() -> None:
     assert "UNBACKED_RULE_REF" in codes(check(doc, [], knowledge_only=True))
 
 
-def test_knowledge_only_allows_hedging() -> None:
-    """"일반적으로" 는 모델 지식으로 답할 때 정확한 표현이다(9절이 허가한 어투)."""
-    doc = _doc(headline="일반적으로 아홉 명이 뜁니다.")
-    assert "HEDGE" in codes(check(doc, [make_doc()]))
+def test_hedging_is_no_longer_flagged() -> None:
+    """프롬프트가 더는 "일반적으로" 를 금지하지 않는다.
+
+    모델 지식으로 답하는 경로가 정식 경로가 된 이상 그 어투는 오히려 정확한 표시다.
+    금지하지 않는 것을 린트만 계속 잡으면 경고가 의미를 잃는다.
+    """
+    doc = _doc(why="일반적으로 그렇게 봅니다.", headline="일반적으로 아홉 명이 뜁니다.")
+    assert "HEDGE" not in codes(check(doc, [make_doc()]))
     assert "HEDGE" not in codes(check(doc, [make_doc()], knowledge_only=True))

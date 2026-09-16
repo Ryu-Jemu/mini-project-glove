@@ -68,7 +68,7 @@ def test_blocking_lint_fails_the_run(code: str) -> None:
 
 
 def test_warning_lint_does_not_fail_the_run() -> None:
-    assert run_eval.check_gates(_summary(lint_warn=["HEDGE", "BULLET_COUNT"])) == []
+    assert run_eval.check_gates(_summary(lint_warn=["SHORT_HEADLINE", "BULLET_COUNT"])) == []
 
 
 def test_answer_kind_allows_one_mismatch() -> None:

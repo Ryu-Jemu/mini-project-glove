@@ -11,7 +11,7 @@ import theme
 from backend import MODE, document_url, readyz, reset_session, stream_answer
 
 APP_TITLE = "KBO 야구 규칙 도우미"
-PROMPT_SHA = "830a9d25-bde7395c"
+PROMPT_SHA = "13a28529-718e8ea1"
 EXAMPLES = [
     "인필드 플라이가 뭐야?", "보크가 뭐야?", "타점이 뭐야?",
     "도루가 뭐야?", "5.09 알려줘", "피치클락 몇 초야?",

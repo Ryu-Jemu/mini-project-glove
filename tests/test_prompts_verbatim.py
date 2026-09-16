@@ -23,8 +23,8 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 def test_sha256_pins() -> None:
     for name, pin, size in [
-        ("system_prompt.txt", SYSTEM_SHA256, 8280),
-        ("human_prompt.txt", HUMAN_SHA256, 2850),
+        ("system_prompt.txt", SYSTEM_SHA256, 8371),
+        ("human_prompt.txt", HUMAN_SHA256, 2483),
     ]:
         raw = (PROMPT_DIR / name).read_bytes()
         assert hashlib.sha256(raw).hexdigest() == pin

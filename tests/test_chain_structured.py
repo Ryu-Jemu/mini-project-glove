@@ -90,11 +90,11 @@ def test_refusal_inside_answer_is_demoted_to_a_pure_refusal(settings, fake_retri
 
 
 def test_non_blocking_lint_keeps_the_answer(settings, fake_retriever) -> None:
-    payload = make_answer_payload(why="일반적으로 그렇게 봅니다.")
+    payload = make_answer_payload(headline="9명입니다")
     svc = _service(settings, fake_retriever, [json.dumps(payload, ensure_ascii=False)])
     r = svc.answer(QUESTION)
     assert r.status == "answered"
-    assert "HEDGE" in r.format_issues
+    assert "SHORT_HEADLINE" in r.format_issues
     assert r.format_ok is True                    # 경고는 답변을 버리지 않는다
 
 

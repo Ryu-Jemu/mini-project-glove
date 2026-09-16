@@ -22,8 +22,6 @@ MIN_DETAIL_CHARS = 8
 TERM_RULE_BULLETS = (2, 5)
 MAX_RENDERED_CHARS = 2500
 
-# system_prompt.txt 가 명시적으로 금지한 표현("일반적으로", "보통", "알려진 바로는" 등)
-_HEDGE_RE = re.compile(r"일반적으로|알려진\s*바로는|대체로|아마도|아마\s|흔히|보통\s")
 _MD_INJECT_RE = re.compile(r"^\s*[#>*+]|^\s*-\s|\||<\w+|\$", re.MULTILINE)
 _RULE_NO_RE = re.compile(r"^[1-9]\.\d{2}")
 _DEF_RE = re.compile(r"^DEF-(\d+)$", re.IGNORECASE)
@@ -138,13 +136,6 @@ def check(
     if doc.kind == "term_rule" and not low <= len(doc.points) <= high:
         issues.append(Issue("BULLET_COUNT",
                             f"term_rule 의 points 가 {len(doc.points)}개다({low}~{high} 기대)"))
-
-    # 모델 지식으로 답할 때는 "일반적으로" 가 정확한 표현이다. system_prompt 9절이 허가한
-    # 어투라 여기서 잡으면 그 경로의 모든 답변에 경고가 붙어 신호가 의미를 잃는다.
-    if not knowledge_only:
-        hedged = [p for p, t in _text_fields(doc) if _HEDGE_RE.search(_norm(t))]
-        if hedged:
-            issues.append(Issue("HEDGE", f"근거 없는 일반화 표현: {', '.join(hedged[:3])}"))
 
     if knowledge_only:
         # 근거 문서가 아예 없다. 그러면 backing 이 비어 아래 검사가 통째로 건너뛰어지고,
