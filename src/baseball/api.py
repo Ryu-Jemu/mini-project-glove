@@ -90,6 +90,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         res = service.retriever.retrieve(q, k=k)
         return {
             "abstain": res.abstain, "dense_top": res.dense_top, "bm25_ratio": res.bm25_ratio,
+            "dense_failed": res.dense_failed,
             "exact_hits": res.exact_hits, "channels": res.channels,
             "docs": [
                 {"rule_id": d["rule_id"], "breadcrumb": d["breadcrumb"], "page": d["page_start"],

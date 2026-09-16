@@ -62,10 +62,16 @@ class Settings(BaseSettings):
     # --- 검색 ---
     abstain_dense_threshold: float = 0.30
     abstain_bm25_ratio: float = 0.15
+    # 임베딩 호출 실패(키·쿼터·네트워크)는 '자료에 없음'의 증거가 아니다. 기본은 abstain 하지 않는다.
+    abstain_on_dense_failure: bool = False
+    # bm25_ratio 의 분모. "short" 는 질문 길이 기준선(권장), "sentence" 는 예전 문장 기준선. tunable
+    abstain_bm25_reference: Literal["sentence", "short"] = "short"
     rrf_weight_dense: float = 0.5
     rrf_weight_bm25: float = 0.5
     # 융합 점수가 1위의 이 비율 미만인 문서는 컨텍스트에서 제외(무관 자료가 답변 거부를 유발) tunable
     context_min_score_ratio: float = 0.55
+    # 하한을 적용하기 전에 남겨 둘 상위 문서 수. 단채널만 찾은 정답이 잘려 나가는 것을 막는다. tunable
+    context_min_docs: int = 3
 
     # --- 최신정보 ---
     enable_web_search: Literal["auto", "on", "off"] = "auto"

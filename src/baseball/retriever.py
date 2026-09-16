@@ -42,6 +42,48 @@ class RetrievalResult:
     exact_hits: list[str]
     channels: dict[str, list[str]]
     context_tokens: int
+    dense_failed: bool = False
+
+
+def should_abstain(
+    settings: Settings, *, has_exact: bool, dense_failed: bool, dense_top: float, bm25_ratio: float
+) -> bool:
+    """검색이 근거를 찾지 못했는지 판정한다.
+
+    dense 가 '약하다'와 dense 를 '못 불렀다'는 다른 사건이다. 뭉뚱그리면 401·쿼터 같은
+    인프라 장애가 not_in_rulebook 이라는 내용 거부로 둔갑한다. 기본값은 못 부른 경우를
+    근거로 치지 않는다(abstain_on_dense_failure=False).
+    """
+    if has_exact:
+        return False
+    if dense_failed:
+        dense_weak = settings.abstain_on_dense_failure
+    else:
+        dense_weak = dense_top < settings.abstain_dense_threshold
+    return dense_weak and bm25_ratio < settings.abstain_bm25_ratio
+
+
+def select_context(
+    ranked: Sequence[dict[str, Any]], k: int, settings: Settings
+) -> tuple[list[dict[str, Any]], int]:
+    """상위 문서를 토큰 예산 안에서 고른다. 하한은 상위 몇 건 이후에만 적용한다.
+
+    floor 는 1위 융합점수의 비율이다. dense 와 bm25 가 1위에 합의하면 1위 점수가 두 배가
+    되어, 한 채널만 찾은 문서는 좋든 나쁘든 전부 하한 아래로 떨어진다. 정답 청크가 그렇게
+    사라지는 일을 막으려고 상위 context_min_docs 건은 하한을 면제한다.
+    """
+    top_score = max((d.get("score_fused", 0.0) for d in ranked), default=0.0)
+    floor = top_score * settings.context_min_score_ratio
+    docs: list[dict[str, Any]] = []
+    used = 0
+    for doc in ranked:
+        if len(docs) >= k or used + doc["tokens"] > settings.context_max_tokens:
+            break
+        if len(docs) >= settings.context_min_docs and doc.get("score_fused", 0.0) < floor:
+            continue
+        docs.append(doc)
+        used += doc["tokens"]
+    return docs, used
 
 
 def load_glossary(settings: Settings | None = None) -> list[dict[str, Any]]:
@@ -132,12 +174,14 @@ class HybridRetriever:
             hits = self.lexical.search(query, BM25_LIMIT, extra_terms=plan.bm25_extra)
             channels["bm25"] = [h.chunk_id for h in hits]
             bm25_max = hits[0].score if hits else 0.0
-            bm25_ratio = bm25_max / self.lexical.ref_score if self.lexical.ref_score else 0.0
+            ref = (self.lexical.ref_score_short
+                   if self.settings.abstain_bm25_reference == "short"
+                   else self.lexical.ref_score)
+            bm25_ratio = bm25_max / ref if ref else 0.0
 
-            abstain = (
-                not exact_rows
-                and (dense_failed or dense_top < self.settings.abstain_dense_threshold)
-                and bm25_ratio < self.settings.abstain_bm25_ratio
+            abstain = should_abstain(
+                self.settings, has_exact=bool(exact_rows), dense_failed=dense_failed,
+                dense_top=dense_top, bm25_ratio=bm25_ratio,
             )
 
             pool: dict[str, dict[str, Any]] = {r["id"]: dict(r) for r in dense_rows}
@@ -162,21 +206,11 @@ class HybridRetriever:
                 ranked.append(doc)
             ranked = self._expand_parents(ranked, conn)
 
-        top_score = max((d.get("score_fused", 0.0) for d in ranked), default=0.0)
-        floor = top_score * self.settings.context_min_score_ratio
-        docs: list[dict[str, Any]] = []
-        used = 0
-        for doc in ranked:
-            if len(docs) >= k or used + doc["tokens"] > self.settings.context_max_tokens:
-                break
-            # 관련성이 확연히 낮은 문서는 넣지 않는다(최소 1건은 유지).
-            if docs and doc.get("score_fused", 0.0) < floor:
-                continue
-            docs.append(doc)
-            used += doc["tokens"]
+        docs, used = select_context(ranked, k, self.settings)
         return RetrievalResult(
             docs=docs, abstain=abstain, dense_top=dense_top, bm25_ratio=bm25_ratio,
             exact_hits=[r["rule_id"] for r in exact_rows], channels=channels, context_tokens=used,
+            dense_failed=dense_failed,
         )
 
     def _expand_parents(self, ranked: list[dict[str, Any]], conn: Any) -> list[dict[str, Any]]:

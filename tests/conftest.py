@@ -56,6 +56,7 @@ class FakeRetrieval:
     exact_hits: list[str] = field(default_factory=list)
     channels: dict[str, list[str]] = field(default_factory=dict)
     context_tokens: int = 100
+    dense_failed: bool = False
 
 
 class FakeRetriever:
