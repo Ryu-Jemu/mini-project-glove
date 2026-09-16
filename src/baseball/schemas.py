@@ -6,6 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 Status = Literal["answered", "not_in_rulebook", "out_of_scope", "phase2_pending"]
+AnswerKind = Literal["term_rule", "situation", "entity", "latest"]
 Freshness = Literal["static", "snapshot", "web", "live"]
 
 
@@ -59,3 +60,7 @@ class ChatResponse(BaseModel):
     model: str
     session_id: str | None = None
     llm_called: bool = True
+    # 답변 스키마. 전부 기본값이라 기존 응답 계약을 깨지 않는다.
+    answer_kind: AnswerKind | None = None
+    format_ok: bool = True
+    format_issues: list[str] = []
