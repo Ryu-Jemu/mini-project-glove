@@ -120,3 +120,21 @@ def test_duplicate_headline_and_definition() -> None:
 def test_too_long() -> None:
     doc = _doc(why="길다. " * 700)
     assert "TOO_LONG" in codes(check(doc, [make_doc()]))
+
+
+def test_knowledge_only_rejects_every_rule_reference() -> None:
+    """근거 문서가 없으면 backing 이 비어 UNBACKED_RULE_REF 가 통째로 꺼진다.
+
+    그 상태에서 규칙 번호를 지어내도 아무도 못 잡는다. 모델 지식 경로의 주된 실패 방식이라
+    검사를 뒤집어 인용 자체를 잡는다.
+    """
+    doc = _doc(points=[_point("라벨", "정상 설명입니다.", "5.09")])
+    assert "UNBACKED_RULE_REF" not in codes(check(doc, []))
+    assert "UNBACKED_RULE_REF" in codes(check(doc, [], knowledge_only=True))
+
+
+def test_knowledge_only_allows_hedging() -> None:
+    """"일반적으로" 는 모델 지식으로 답할 때 정확한 표현이다(9절이 허가한 어투)."""
+    doc = _doc(headline="일반적으로 아홉 명이 뜁니다.")
+    assert "HEDGE" in codes(check(doc, [make_doc()]))
+    assert "HEDGE" not in codes(check(doc, [make_doc()], knowledge_only=True))

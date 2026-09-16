@@ -11,7 +11,7 @@ import theme
 from backend import MODE, document_url, readyz, reset_session, stream_answer
 
 APP_TITLE = "KBO 야구 규칙 도우미"
-PROMPT_SHA = "5ce6f2ca-7407a382"
+PROMPT_SHA = "830a9d25-bde7395c"
 EXAMPLES = [
     "인필드 플라이가 뭐야?", "보크가 뭐야?", "타점이 뭐야?",
     "도루가 뭐야?", "5.09 알려줘", "피치클락 몇 초야?",
@@ -22,7 +22,8 @@ STATUS_BADGE = {
     "out_of_scope": ("야구 외 질문", "gray", ":material/block:"),
     "phase2_pending": ("최신 정보 도구는 Phase 2", "orange", ":material/schedule:"),
 }
-FRESHNESS_LABEL = {"static": "규칙집", "snapshot": "리그 규정 스냅샷", "web": "웹 검색", "live": "실시간"}
+FRESHNESS_LABEL = {"static": "규칙집", "snapshot": "리그 규정 스냅샷", "web": "웹 검색",
+                   "live": "실시간", "model": "모델 지식(출처 없음)"}
 
 st.set_page_config(
     page_title=APP_TITLE, page_icon=":material/sports_baseball:",
@@ -42,12 +43,27 @@ if "pending" not in st.session_state:
     st.session_state.pending = None
 
 
+def _grounding_notice(final: dict) -> str | None:
+    """근거 상태가 평소와 다르면 알린다.
+
+    partial_refusal 은 답변 스키마를 켠 뒤로는 뜰 수 없다. chain 이 거부 문장이 섞인 답변을
+    통째로 순수 거부로 강등하기 때문이다. 배너와 CSS 를 버리는 대신 여기로 용도를 옮긴다.
+    """
+    if final.get("freshness") == "model":
+        return "⚠ 규칙집과 웹 검색에서 근거를 찾지 못해 일반적인 야구 상식으로 답했습니다."
+    if final.get("partial_refusal"):
+        return "⚠ 답변 일부에 근거가 없는 부분이 있습니다."
+    if final.get("format_ok") is False:
+        return "⚠ 답변 형식 검사를 통과하지 못했습니다. 내용이 평소와 다를 수 있습니다."
+    return None
+
+
 def render_sources(sources: list[dict]) -> None:
     if not sources:
         return
     with st.expander(f"근거 자료 {len(sources)}건", expanded=False):
         with st.container(key=f"sources-panel-{uuid.uuid4().hex[:6]}"):
-            chips = "".join(theme.chip(s.get("kind", "rule"), s.get("label", "")) for s in sources)
+            chips = "".join(theme.chip(s.get("kind", "static"), s.get("label", "")) for s in sources)
             st.html(f'<div class="st-key-sources-panel">{chips}</div>')
             for s in sources:
                 line = s.get("label", "")
@@ -115,9 +131,10 @@ for message in st.session_state.messages:
             final = message["final"]
             label, color, icon = STATUS_BADGE.get(final["status"], ("처리됨", "gray", None))
             st.badge(label.format(n=len(final.get("sources", []))), color=color, icon=icon)
-            if final.get("partial_refusal"):
+            notice = _grounding_notice(final)
+            if notice:
                 with st.container(key=f"partial-notice-{uuid.uuid4().hex[:6]}"):
-                    st.html('<div class="st-key-partial-notice">⚠ 답변 일부에 근거가 없는 부분이 있습니다.</div>')
+                    st.html(f'<div class="st-key-partial-notice">{notice}</div>')
             render_sources(final.get("sources", []))
             usage = final.get("usage", {})
             st.caption(

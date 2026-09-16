@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     # 사전으로 판정이 서지 않을 때만 저가 LLM 을 한 번 부른다. off 면 그런 질문은 통과시킨다.
     scope_gate_llm: Literal["auto", "off"] = "auto"
 
+    # 규칙집과 웹 어디에도 근거가 없는 야구 질문에 모델의 일반 지식으로 답한다.
+    # 출처가 없다는 사실을 배지로 구분해 보여 준다. off 면 그런 질문은 거부한다.
+    enable_model_knowledge: Literal["on", "off"] = "on"
+
     # --- 최신정보 ---
     enable_web_search: Literal["auto", "on", "off"] = "auto"
     tavily_include_domains: str = (
@@ -125,6 +129,10 @@ class Settings(BaseSettings):
     @property
     def kbo_data_enabled(self) -> bool:
         return self.enable_kbo_data == "on"
+
+    @property
+    def model_knowledge_enabled(self) -> bool:
+        return self.enable_model_knowledge == "on"
 
     @property
     def answer_schema_enabled(self) -> bool:

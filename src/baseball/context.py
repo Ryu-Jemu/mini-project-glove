@@ -17,7 +17,7 @@ def count_tokens(text: str) -> int:
 
 @dataclass(frozen=True)
 class LatestEntry:
-    kind: Literal["snapshot", "web"]
+    kind: Literal["snapshot", "web", "model"]
     label: str
     text: str
     as_of: str                                   # "YYYY-MM-DD"
@@ -70,6 +70,26 @@ def _kbo_block(index: int, entry: KboEntry) -> str:
     )
 
 
+# 이 문자열은 system_prompt.txt 9절이 찾는 표지다. 바꾸면 그 절이 켜지지 않는다.
+MODEL_BLOCK_LABEL = "일반 지식"
+MODEL_BLOCK_TEXT = (
+    "이 질문의 답은 제공된 자료에서 확인되지 않았습니다. "
+    "널리 합의된 야구 상식만으로 답하고, 수치·기록·순위·최신 정보·규칙 번호는 쓰지 마세요."
+)
+
+
+def _model_block(index: int) -> str:
+    """규칙집에도 웹에도 근거가 없을 때만 들어가는 블록.
+
+    _latest_block 을 재사용하지 않는 이유는 그쪽이 출처 없음을 '내부 스냅샷' 으로 적기 때문이다.
+    모델 지식에는 출처가 없다는 사실 자체를 그대로 적어야 한다.
+    """
+    return (
+        f"[자료 {index} | {MODEL_BLOCK_LABEL} | 규칙집·웹에서 확인되지 않은 질문 | "
+        f"출처 없음 | 신뢰도 uncertain]\n{MODEL_BLOCK_TEXT}"
+    )
+
+
 def format_context(
     rule_docs: Sequence[dict[str, Any]],
     latest: Sequence[LatestEntry] = (),
@@ -78,10 +98,14 @@ def format_context(
     max_tokens: int = 3000,
     latest_max_tokens: int = 800,
     kbo_max_tokens: int = 2200,
+    knowledge_only: bool = False,
 ) -> str:
     """번호는 규칙집 → 최신정보 → KBO 순서로 연속. 예산 초과 시 해당 블록에서 중단."""
     blocks: list[str] = []
     index = 1
+
+    if knowledge_only:
+        return _model_block(index)
 
     used = 0
     for doc in rule_docs:

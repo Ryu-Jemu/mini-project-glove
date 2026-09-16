@@ -100,7 +100,9 @@ def _is_ref_backed(ref: str, backing: set[str]) -> bool:
     return False
 
 
-def check(doc: AnswerDoc, retrieved: Sequence[dict[str, Any]] = ()) -> list[Issue]:
+def check(
+    doc: AnswerDoc, retrieved: Sequence[dict[str, Any]] = (), *, knowledge_only: bool = False
+) -> list[Issue]:
     if doc.is_refusal:
         return []                       # 거부는 렌더러가 상수를 내므로 검사할 내용이 없다
 
@@ -137,16 +139,27 @@ def check(doc: AnswerDoc, retrieved: Sequence[dict[str, Any]] = ()) -> list[Issu
         issues.append(Issue("BULLET_COUNT",
                             f"term_rule 의 points 가 {len(doc.points)}개다({low}~{high} 기대)"))
 
-    hedged = [p for p, t in _text_fields(doc) if _HEDGE_RE.search(_norm(t))]
-    if hedged:
-        issues.append(Issue("HEDGE", f"근거 없는 일반화 표현: {', '.join(hedged[:3])}"))
+    # 모델 지식으로 답할 때는 "일반적으로" 가 정확한 표현이다. system_prompt 9절이 허가한
+    # 어투라 여기서 잡으면 그 경로의 모든 답변에 경고가 붙어 신호가 의미를 잃는다.
+    if not knowledge_only:
+        hedged = [p for p, t in _text_fields(doc) if _HEDGE_RE.search(_norm(t))]
+        if hedged:
+            issues.append(Issue("HEDGE", f"근거 없는 일반화 표현: {', '.join(hedged[:3])}"))
 
-    backing = _backed_refs(retrieved)
-    if backing:
-        unbacked = sorted({r for r in _claimed_refs(doc) if not _is_ref_backed(r, backing)})
-        if unbacked:
+    if knowledge_only:
+        # 근거 문서가 아예 없다. 그러면 backing 이 비어 아래 검사가 통째로 건너뛰어지고,
+        # 규칙 번호를 지어내도 아무도 잡지 못한다. 이 경로의 주된 실패 방식이므로 뒤집는다.
+        claimed = sorted(set(_claimed_refs(doc)))
+        if claimed:
             issues.append(Issue("UNBACKED_RULE_REF",
-                                f"검색 결과에 없는 근거: {', '.join(unbacked)}"))
+                                f"근거 없이 인용한 규칙 번호: {', '.join(claimed)}"))
+    else:
+        backing = _backed_refs(retrieved)
+        if backing:
+            unbacked = sorted({r for r in _claimed_refs(doc) if not _is_ref_backed(r, backing)})
+            if unbacked:
+                issues.append(Issue("UNBACKED_RULE_REF",
+                                    f"검색 결과에 없는 근거: {', '.join(unbacked)}"))
 
     situation_only = bool(doc.ruling or doc.outcome or doc.variations)
     if doc.kind == "situation" and not _norm(doc.ruling):

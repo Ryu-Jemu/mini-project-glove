@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 Status = Literal["answered", "not_in_rulebook", "out_of_scope", "phase2_pending"]
 AnswerKind = Literal["term_rule", "situation", "entity", "latest"]
-Freshness = Literal["static", "snapshot", "web", "live"]
+Freshness = Literal["static", "snapshot", "web", "live", "model"]
 
 
 class ChatRequest(BaseModel):
@@ -25,7 +25,7 @@ class Citation(BaseModel):
 
 
 class Source(BaseModel):
-    kind: Literal["static", "snapshot", "web", "kbo"]
+    kind: Literal["static", "snapshot", "web", "kbo", "model"]
     label: str
     url: str | None = None
     as_of: str | None = None

@@ -20,7 +20,10 @@ BRAND: dict[str, dict[str, str]] = {
              "chip_snapshot": "#A7A9AC"},
 }
 
-CHIP_PREFIX = {"rule": "규칙집 · ", "snapshot": "스냅샷 · ", "web": "웹 · ", "kbo": "KBO · "}
+# 키는 Source.kind 값 그대로여야 한다. 규칙집 근거의 kind 는 "static" 이라
+# "rule" 로 적어 둔 동안에는 접두어도 CSS 도 걸리지 않았다.
+CHIP_PREFIX = {"static": "규칙집 · ", "snapshot": "스냅샷 · ", "web": "웹 · ",
+               "kbo": "KBO · ", "model": "모델 지식 · "}
 
 
 def theme_mode() -> Literal["light", "dark"]:
@@ -35,10 +38,11 @@ def build_css(c: dict[str, str]) -> str:
   border:1px solid {c['border_interactive']}; border-radius:999px;
   padding:3px 11px; font-size:0.78rem; line-height:1.5;
 }}
-.st-key-sources-panel .tw-chip--rule {{ border-color:{c['primary']}; color:{c['primary']}; }}
+.st-key-sources-panel .tw-chip--static {{ border-color:{c['primary']}; color:{c['primary']}; }}
 .st-key-sources-panel .tw-chip--snapshot {{ border-color:{c['chip_snapshot']}; color:{c['chip_snapshot']}; }}
 .st-key-sources-panel .tw-chip--web {{ border-style:dashed; color:{c['muted']}; }}
 .st-key-sources-panel .tw-chip--kbo {{ border-color:{c['link']}; color:{c['link']}; }}
+.st-key-sources-panel .tw-chip--model {{ border-style:dotted; color:{c['muted']}; }}
 .st-key-partial-notice {{
   background:{c['error_bg']}; color:{c['error_text']};
   border:1px solid {c['error_text']}; border-radius:10px; padding:10px 14px; font-size:0.86rem;

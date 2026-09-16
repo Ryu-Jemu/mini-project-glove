@@ -149,6 +149,7 @@ class _Prepared:
     context: str
     gate: TurnResult | None = None
     kbo: list[Any] = field(default_factory=list)
+    knowledge_only: bool = False
 
 
 def _rule_sources(docs: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -157,6 +158,18 @@ def _rule_sources(docs: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
         "label": f"2026 공식야구규칙 {d['breadcrumb']} p.{d['page_start']}",
         "url": None, "as_of": RULEBOOK_AS_OF, "confidence": "confirmed",
     } for d in docs]
+
+
+def _model_source() -> list[dict[str, Any]]:
+    """근거 문서가 없다는 사실을 출처로 남긴다.
+
+    화면에서 구분해 보여 주기 위해서이고, sources 가 비지 않아야 평가 게이트
+    (sources_nonempty_ratio == 1.0)도 그대로 유지된다.
+    """
+    return [{
+        "kind": "model", "label": "모델 일반 지식 (규칙집·웹에서 확인되지 않음)",
+        "url": None, "as_of": None, "confidence": "uncertain",
+    }]
 
 
 def _latest_sources(entries: Iterable[LatestEntry]) -> list[dict[str, Any]]:
@@ -244,7 +257,7 @@ class RagService:
         except ValidationError:
             return None
 
-        issues = answer_lint.check(doc, prepared.docs)
+        issues = answer_lint.check(doc, prepared.docs, knowledge_only=prepared.knowledge_only)
         if answer_lint.blocking(issues):
             # 본문에 거부 문장이 섞이거나 headline 이 비면 화면이 망가진다.
             # 반쪽짜리를 보여 주느니 순수 거부 문장으로 떨어뜨린다.
@@ -368,11 +381,15 @@ class RagService:
             docs = []
 
         # 3단계 — 어디에서도 근거를 못 찾았다.
+        knowledge_only = False
         if not docs and not latest and not kbo_entries:
             needs_live = bool(
                 latest_info.LIVE_WEB_RE.search(unicodedata.normalize("NFKC", question))
             )
-            if r.kind in {"latest", "mixed"} and needs_live:
+            # 실시간 값(순위·기록·일정)은 모델 지식으로 답하면 안 된다. 틀린 숫자가 나온다.
+            if self.settings.model_knowledge_enabled and not needs_live:
+                knowledge_only, freshness = True, "model"
+            elif r.kind in {"latest", "mixed"} and needs_live:
                 # 실시간 정보가 필요한데 웹 경로가 닫혀 있거나 빈손이다.
                 gate = TurnResult(
                     answer=NOT_IN_CONTEXT_REFUSAL, status="phase2_pending", freshness="static",
@@ -384,13 +401,15 @@ class RagService:
                     answer=NOT_IN_CONTEXT_REFUSAL, status="not_in_rulebook", freshness=freshness,
                     route=r.to_dict(), llm_called=False, model=model, retrieval=retrieval,
                 )
-            return _Prepared(r, [], freshness, [], "", gate, kbo_entries)
+            if not knowledge_only:
+                return _Prepared(r, [], freshness, [], "", gate, kbo_entries)
 
         context = format_context(
             docs, latest, kbo_entries,
             max_tokens=self.settings.context_max_tokens,
             latest_max_tokens=self.settings.latest_context_max_tokens,
             kbo_max_tokens=self.settings.kbo_context_max_tokens,
+            knowledge_only=knowledge_only,
         )
         if not context:
             gate = TurnResult(
@@ -399,7 +418,8 @@ class RagService:
             )
             return _Prepared(r, latest, freshness, [], "", gate, kbo_entries)
 
-        prepared = _Prepared(r, latest, freshness, docs, context, None, kbo_entries)
+        prepared = _Prepared(r, latest, freshness, docs, context, None, kbo_entries,
+                             knowledge_only=knowledge_only)
         prepared.retrieval = retrieval                      # type: ignore[attr-defined]
         return prepared
 
@@ -421,7 +441,8 @@ class RagService:
             route=prepared.route.to_dict(),
             citations=[c.to_dict() for c in found],
             dropped_citations=dropped,
-            sources=_rule_sources(prepared.docs) + _latest_sources(prepared.latest) + _kbo_sources(prepared.kbo),
+            sources=_rule_sources(prepared.docs) + _latest_sources(prepared.latest)
+                    + _kbo_sources(prepared.kbo) + (_model_source() if prepared.knowledge_only else []),
             usage=usage,
             latency_ms=int((time.time() - started) * 1000),
             llm_called=True,
@@ -480,7 +501,9 @@ class RagService:
             return
 
         yield {"event": "status", "data": {"status": "retrieving", "llm_called": True}}
-        sources = _rule_sources(prepared.docs) + _latest_sources(prepared.latest) + _kbo_sources(prepared.kbo)
+        sources = (_rule_sources(prepared.docs) + _latest_sources(prepared.latest)
+                   + _kbo_sources(prepared.kbo)
+                   + (_model_source() if prepared.knowledge_only else []))
         yield {"event": "sources", "data": {"sources": sources}}
 
         yield {"event": "status", "data": {"status": "generating", "llm_called": True}}
@@ -529,7 +552,9 @@ class RagService:
             return
 
         yield {"event": "status", "data": {"status": "retrieving", "llm_called": True}}
-        sources = _rule_sources(prepared.docs) + _latest_sources(prepared.latest) + _kbo_sources(prepared.kbo)
+        sources = (_rule_sources(prepared.docs) + _latest_sources(prepared.latest)
+                   + _kbo_sources(prepared.kbo)
+                   + (_model_source() if prepared.knowledge_only else []))
         yield {"event": "sources", "data": {"sources": sources}}
 
         yield {"event": "status", "data": {"status": "generating", "llm_called": True}}

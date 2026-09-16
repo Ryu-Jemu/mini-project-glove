@@ -146,3 +146,53 @@ def test_snapshot_is_preferred_over_the_web(web) -> None:
 
     assert web.queries == []
     assert out.freshness == "snapshot"
+
+
+# --------------------------------------------------------------------------- 모델 지식 티어
+
+def _knowledge_on(**kw: Any) -> Settings:
+    return _settings(enable_model_knowledge="on", **kw)
+
+
+def test_model_knowledge_answers_when_nothing_is_found(web) -> None:
+    """규칙집에도 웹에도 없는 야구 질문은 거부 대신 일반 상식으로 답한다."""
+    out = _service(_knowledge_on(), abstain=True).answer("야구 몇 명이서 플레이해?")
+
+    assert out.status == "answered"
+    assert out.freshness == "model"
+    assert out.llm_called is True
+    assert [s["kind"] for s in out.sources] == ["model"]
+    assert out.sources[0]["url"] is None
+
+
+def test_model_knowledge_block_carries_the_prompt_marker(web) -> None:
+    """system_prompt 9절은 이 표지를 보고 켜진다. 문자열이 어긋나면 절이 죽는다."""
+    from baseball.context import MODEL_BLOCK_LABEL
+
+    service = _service(_knowledge_on(), abstain=True)
+    prepared = service.prepare("야구 몇 명이서 플레이해?", model="gpt-4o-mini")
+
+    assert prepared.knowledge_only is True
+    assert f"| {MODEL_BLOCK_LABEL} |" in prepared.context
+    assert prepared.gate is None
+
+
+def test_model_knowledge_never_answers_live_questions(web) -> None:
+    """순위·기록·일정을 모델 지식으로 답하면 틀린 숫자가 나온다. 이건 거부한다."""
+    out = _service(_knowledge_on(), abstain=True).answer("오늘 KT 경기 몇 시야?")
+
+    assert out.status == "phase2_pending"
+    assert out.freshness != "model"
+    assert out.llm_called is False
+
+
+def test_model_knowledge_can_be_switched_off(web) -> None:
+    out = _service(_settings(enable_model_knowledge="off"), abstain=True).answer("보크가 뭐야?")
+    assert out.status == "not_in_rulebook"
+    assert out.llm_called is False
+
+
+def test_web_is_preferred_over_model_knowledge(web) -> None:
+    web.results = [_entry()]
+    out = _service(_web_on(enable_model_knowledge="on"), abstain=True).answer("보크가 뭐야?")
+    assert out.freshness == "web"
