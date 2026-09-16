@@ -59,3 +59,47 @@ def test_latest_info_snapshot_and_pending(settings) -> None:
     assert (freshness, entries) == ("phase2_pending", [])
 
     assert match_snapshot("인필드 플라이가 뭐야") == []
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "야구 몇 명이서 플레이해?",
+        "야구는 몇 명이 하나요?",
+        "한 팀에 선수가 몇 명이야?",
+        "수비 위치가 몇 개야?",
+        "야구 경기 목적이 뭐야?",
+        "야구 몇 이닝까지 해?",
+    ],
+)
+def test_basic_rule_questions_go_to_the_rulebook(question: str) -> None:
+    """경기의 기본 구조를 묻는 말은 규칙집 질문이다.
+
+    예전에는 RULE_RE 에 이런 어휘가 없어 '야구'라는 도메인 단어 하나만 걸렸고,
+    도메인 전용 폴백이 이를 최신정보 경로로 보냈다. 답은 규칙 1.00 에 있다.
+    LLM 라우터를 부르지 않고 키워드 단계에서 끝나야 한다.
+    """
+    llm = RecordingLLM('{"kind":"off_topic"}')
+    r = route(question, llm=llm)
+    assert (r.kind, r.by) == ("rule", "keyword")
+    assert llm.calls == []
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["LG 트윈스 홈구장이 어디야?", "오늘 KT 경기 몇 시야?", "두산 베어스 남은 경기 몇 개야?"],
+)
+def test_kbo_data_questions_still_route_to_latest(question: str) -> None:
+    """구단 데이터 질문은 topics∧teams 분기가 먼저 걷어 간다(규칙집으로 새지 않는다)."""
+    r = route(question, llm=RecordingLLM('{"kind":"rule"}'))
+    assert r.kind == "latest"
+
+
+def test_domain_only_question_prefers_the_rulebook() -> None:
+    """도메인 단어만 있는 질문의 폴백이 latest → rule 로 바뀌었다.
+
+    웹 검색이 규칙집보다 먼저 돌던 시절의 선택을 되돌린 것이다. 지금 rule 은
+    '규칙집 → 없으면 웹 → 그래도 없으면 모델 지식' 을 뜻한다.
+    """
+    r = route("야구 재미있게 보는 법", llm=RecordingLLM('{"kind":"off_topic"}'))
+    assert (r.kind, r.by, r.domain_hit) == ("rule", "keyword", True)
