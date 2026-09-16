@@ -139,3 +139,98 @@ def test_rulebook_pdf_url_reaches_the_deploy(monkeypatch) -> None:
     import service
 
     assert "RULEBOOK_PDF_URL" in service._SECRET_KEYS
+
+
+# --------------------------------------------------------------------------- UI 불변식
+
+def test_ui_never_uses_raw_html() -> None:
+    """st.html 은 sanitize 된다. unsafe_allow_html·components.html 은 그렇지 않다.
+
+    영상·지도·맛집 카드를 붙이면서 이 선을 넘고 싶어지는데, 1.63 에는 st.video·
+    st.iframe·st.container(border=True) 가 1급 위젯으로 있어 넘을 이유가 없다.
+    """
+    from pathlib import Path
+
+    for path in sorted(Path("ui").glob("*.py")):
+        src = path.read_text(encoding="utf-8")
+        assert "unsafe_allow_html" not in src, path
+        assert "components.html" not in src, path
+
+
+def test_new_settings_are_in_the_deployment_whitelist() -> None:
+    """ui/service.py 의 _SECRET_KEYS 에 없는 env 는 Cloud 배포본에 전달되지 않는다.
+
+    로컬에서는 절대 드러나지 않고 배포본에서만 조용히 꺼지므로 테스트로 막는다.
+    """
+    import re
+    from pathlib import Path
+
+    src = Path("ui/service.py").read_text(encoding="utf-8")
+    block = re.search(r"_SECRET_KEYS = \((.*?)\n\)", src, re.S)
+    assert block is not None
+    listed = set(re.findall(r'"([A-Z0-9_]+)"', block.group(1)))
+    required = {
+        "ENABLE_SCHEDULE_TOOL", "ENABLE_PLACES", "ENABLE_PLACES_MAP", "ENABLE_HIGHLIGHTS",
+        "GOOGLE_MAPS_EMBED_API_KEY", "YOUTUBE_KBO_API_KEY", "KBO_SCHEDULE_LOOKBACK_DAYS",
+        "PLACES_MAX_RESULTS", "PLACES_MIN_SCORE", "PLACES_CACHE_TTL_SECONDS",
+        "YOUTUBE_HTTP_TIMEOUT_SECONDS", "YOUTUBE_CACHE_TTL_SECONDS", "HIGHLIGHT_MAX_VIDEOS",
+    }
+    assert required <= listed, sorted(required - listed)
+
+
+def test_chat_is_rendered_inside_its_tab() -> None:
+    """tab_chat 이 선언만 되고 쓰이지 않아 '대화' 탭이 비어 있던 적이 있다."""
+    from pathlib import Path
+
+    src = Path("ui/app.py").read_text(encoding="utf-8")
+    assert "with tab_chat:" in src
+
+
+def test_answer_is_written_outside_the_status_box() -> None:
+    """status 상자 안에 쓰면 질문한 그 턴에는 답변도 영상도 보이지 않는다."""
+    from pathlib import Path
+
+    src = Path("ui/app.py").read_text(encoding="utf-8").splitlines()
+    opened = next(i for i, l in enumerate(src) if "st.status(" in l)
+    written = next(i for i, l in enumerate(src) if "st.write_stream(" in l)
+    # with 블록이 아니어야 하고, 들여쓰기가 더 깊어지지 않아야 한다
+    assert "with st.status(" not in "\n".join(src)
+    lead = lambda s: len(s) - len(s.lstrip())
+    assert lead(src[written]) <= lead(src[opened])
+
+
+def test_chat_input_stays_in_the_main_container() -> None:
+    """탭·컬럼 안에 넣으면 streamlit 이 position="inline" 으로 그린다.
+
+    하단 고정이 풀려 답변이 그 아래에 쌓이고, 입력창이 화면 위로 밀려 사라진 것처럼
+    보인다. 근거: streamlit/elements/widgets/chat.py 의
+    "Use bottom position if chat input is within the main container".
+    실제로 '대화' 탭을 고치면서 한 번 깨뜨렸다.
+    """
+    from pathlib import Path
+
+    for line in Path("ui/app.py").read_text(encoding="utf-8").splitlines():
+        if "st.chat_input(" in line:
+            assert not line.startswith((" ", "\t")), f"들여쓰기된 위치에 있다: {line!r}"
+            break
+    else:
+        raise AssertionError("st.chat_input 을 찾지 못했다")
+
+
+def test_evidence_is_not_shown_twice() -> None:
+    """맛집 네 건이 카드로 한 번, 근거 자료 목록으로 또 한 번 나오던 것을 막는다."""
+    from pathlib import Path
+
+    src = Path("ui/app.py").read_text(encoding="utf-8")
+    assert "shown.add(\"place\")" in src
+    assert "s.get(\"kind\") not in shown" in src
+
+
+def test_snippets_are_flattened_before_rendering() -> None:
+    """st.caption 은 마크다운을 렌더한다. 블로그 제목(#)·표(|)가 그대로 들어가면
+    카드 안에 거대한 제목과 빈 표가 생긴다."""
+    from pathlib import Path
+
+    src = Path("ui/app.py").read_text(encoding="utf-8")
+    assert "_plain(" in src and "_MD_NOISE" in src
+    assert "p[\"snippet\"][:120]" not in src          # 잘라내기만 하던 옛 코드

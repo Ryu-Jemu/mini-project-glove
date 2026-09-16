@@ -1,7 +1,11 @@
 """Streamlit 프런트엔드 — 백엔드(FastAPI)의 SSE 를 턴마다 한 번씩 소비한다."""
 from __future__ import annotations
 
+import os
+import re
 import uuid
+from pathlib import Path
+from urllib.parse import quote
 
 import streamlit as st
 
@@ -11,7 +15,7 @@ import theme
 from backend import MODE, document_url, readyz, reset_session, stream_answer
 
 APP_TITLE = "KBO 야구 규칙 도우미"
-PROMPT_SHA = "13a28529-718e8ea1"
+PROMPT_SHA = "1e1e599e-718e8ea1"
 EXAMPLES = [
     "인필드 플라이가 뭐야?", "보크가 뭐야?", "타점이 뭐야?",
     "도루가 뭐야?", "5.09 알려줘", "피치클락 몇 초야?",
@@ -20,7 +24,13 @@ STATUS_BADGE = {
     "answered": ("근거 {n}건", "green", ":material/verified:"),
     "not_in_rulebook": ("자료에서 확인 불가", "gray", ":material/help:"),
     "out_of_scope": ("야구 외 질문", "gray", ":material/block:"),
-    "phase2_pending": ("최신 정보 도구는 Phase 2", "orange", ":material/schedule:"),
+    "phase2_pending": ("도구로 확인하지 못함", "orange", ":material/schedule:"),
+}
+TOOL_LABEL = {
+    "web_search": "웹 검색 중",
+    "kbo_schedule_lookup": "경기 일정 확인 중",
+    "find_restaurants": "구장 주변 맛집 찾는 중",
+    "find_game_highlight": "하이라이트 영상 찾는 중",
 }
 FRESHNESS_LABEL = {"static": "규칙집", "snapshot": "리그 규정 스냅샷", "web": "웹 검색",
                    "live": "실시간", "model": "모델 지식(출처 없음)"}
@@ -56,7 +66,19 @@ def render_final(final: dict) -> None:
         with st.container(key=f"partial-notice-{uuid.uuid4().hex[:6]}"):
             st.html(f'<div class="st-key-partial-notice">{notice}</div>')
 
-    render_sources(final.get("sources", []))
+    media = final.get("media", [])
+    places = final.get("places", [])
+    render_media(media)
+    render_places(places)
+
+    # 카드·플레이어로 이미 보여 준 것은 근거 목록에서 뺀다. 같은 네 건이 카드로 한 번,
+    # 근거 자료 목록으로 또 한 번 나오던 것을 없앤다.
+    shown: set[str] = set()
+    if places:
+        shown.add("place")
+    if any(m.get("kind") == "video" for m in media):
+        shown.add("video")
+    render_sources([s for s in final.get("sources", []) if s.get("kind") not in shown])
 
     usage = final.get("usage", {})
     st.caption(
@@ -151,25 +173,35 @@ tab_chat, tab_clubs = st.tabs(["대화", "구단"])
 with tab_clubs:
     clubs.render()
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"], avatar=":material/sports_baseball:" if message["role"] == "assistant" else None):
-        st.markdown(message["content"])
-        if message.get("final"):
-            final = message["final"]
-            render_final(final)
+# 채팅 기록은 '대화' 탭 안에 그린다. tab_chat 을 선언만 하고 쓰지 않아 탭이 비어 있었다.
+with tab_chat:
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"], avatar=":material/sports_baseball:" if message["role"] == "assistant" else None):
+            st.markdown(message["content"])
+            if message.get("final"):
+                final = message["final"]
+                render_final(final)
 
+
+# chat_input 은 반드시 메인 컨테이너에 둔다. 탭·컬럼 안에 넣으면 streamlit 이
+# position="inline" 으로 그려서 하단 고정이 풀리고, 답변이 그 아래에 쌓이면서
+# 입력창이 화면 위로 밀려 사라진 것처럼 보인다(streamlit/elements/widgets/chat.py).
 typed = st.chat_input("야구 규칙을 물어보세요", submit_mode="disable")
 question = typed or st.session_state.pending
 st.session_state.pending = None
 
-if question:
-    st.session_state.messages.append({"role": "user", "content": question})
-    with st.chat_message("user"):
-        st.markdown(question)
+with tab_chat:                                  # 새 턴도 같은 탭 안에 이어 그린다
+    if question:
+        st.session_state.messages.append({"role": "user", "content": question})
+        with st.chat_message("user"):
+            st.markdown(question)
 
-    with st.chat_message("assistant", avatar=":material/sports_baseball:"):
-        captured: dict[str, dict] = {}
-        with st.status("규칙집 검색 중…", expanded=False) as status:
+        with st.chat_message("assistant", avatar=":material/sports_baseball:"):
+            captured: dict[str, dict] = {}
+            # status 를 with 없이 만든다. with 안에 두면 답변 본문이 접힌 상자 안에 그려져
+            # 질문한 그 턴에는 보이지 않는다(다음 rerun 의 기록에서야 나온다).
+            # 영상·맛집 카드도 같은 이유로 상자 밖에 있어야 한다.
+            status = st.status("규칙집 검색 중…", expanded=False)
             stream = stream_answer(question, st.session_state.session_id)
 
             def tokens():
@@ -185,8 +217,9 @@ if question:
                         status.update(label=f"근거 {len(data.get('sources', []))}건 확보 · 답변 생성 중…")
                     elif event == "tool":
                         # 스키마를 켜면 토큰 스트리밍이 없어 이게 유일한 진행 신호다.
+                        what = TOOL_LABEL.get(data.get("name", ""), "검색 중")
                         query = data.get("query", "")
-                        status.update(label=f"웹 검색 중… {query}".rstrip())
+                        status.update(label=f"{what}… {query}".rstrip())
                     elif event == "token":
                         yield data.get("text", "")
                     elif event == "final":
@@ -196,22 +229,22 @@ if question:
                         yield f"\n\n{data.get('detail', '알 수 없는 오류')}"
 
             answer = st.write_stream(tokens())
-            status.update(label="완료", state="complete")
+            status.update(label="완료", state="complete")   # 상자 밖에서 마무리
 
-        error = captured.get("error")
-        if error:
-            if error.get("kind") == "quota":
-                st.error(
-                    "OpenAI 사용 한도를 초과했습니다. platform.openai.com → 해당 프로젝트 → "
-                    "Limits 에서 한도를 올리거나 결제 수단을 확인한 뒤 다시 시도해 주세요.",
-                    icon=":material/credit_card_off:",
-                )
-            else:
-                st.error(error.get("detail", "요청을 처리하지 못했습니다."), icon=":material/error:")
+            error = captured.get("error")
+            if error:
+                if error.get("kind") == "quota":
+                    st.error(
+                        "OpenAI 사용 한도를 초과했습니다. platform.openai.com → 해당 프로젝트 → "
+                        "Limits 에서 한도를 올리거나 결제 수단을 확인한 뒤 다시 시도해 주세요.",
+                        icon=":material/credit_card_off:",
+                    )
+                else:
+                    st.error(error.get("detail", "요청을 처리하지 못했습니다."), icon=":material/error:")
 
-        final_payload = captured.get("final", {})
-        if final_payload:
-            render_final(final_payload)
-    st.session_state.messages.append(
-        {"role": "assistant", "content": answer or final_payload.get("answer", ""), "final": final_payload}
-    )
+            final_payload = captured.get("final", {})
+            if final_payload:
+                render_final(final_payload)
+        st.session_state.messages.append(
+            {"role": "assistant", "content": answer or final_payload.get("answer", ""), "final": final_payload}
+        )
