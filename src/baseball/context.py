@@ -17,7 +17,7 @@ def count_tokens(text: str) -> int:
 
 @dataclass(frozen=True)
 class LatestEntry:
-    kind: Literal["snapshot", "web", "model"]
+    kind: Literal["snapshot", "web", "model", "place", "video"]
     label: str
     text: str
     as_of: str                                   # "YYYY-MM-DD"

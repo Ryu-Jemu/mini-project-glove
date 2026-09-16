@@ -1,6 +1,7 @@
 """턴 흐름: route → (최신정보) → 검색 → {context} 조립 → verbatim 프롬프트 1회 호출."""
 from __future__ import annotations
 
+import json
 import logging
 import time
 import unicodedata
@@ -137,6 +138,9 @@ class TurnResult:
     retrieval: Any | None = None
     answer_kind: str | None = None
     format_issues: list[str] = field(default_factory=list)
+    # 미디어 채널. 도구가 만든 것이 그대로 흐른다 — LLM 을 통과하지 않는다.
+    media: list[dict[str, Any]] = field(default_factory=list)
+    places: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def format_ok(self) -> bool:
@@ -158,6 +162,8 @@ class _Generated:
     issues: list[str] = field(default_factory=list)
     sources: list[dict[str, Any]] = field(default_factory=list)
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    media: list[dict[str, Any]] = field(default_factory=list)
+    places: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -170,6 +176,7 @@ class _Prepared:
     gate: TurnResult | None = None
     kbo: list[Any] = field(default_factory=list)
     knowledge_only: bool = False
+    needs_live: bool = False
 
 
 def _rule_sources(docs: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -360,10 +367,14 @@ class RagService:
     def _finalize_gen(
         self, gen: _Generated, spent: dict[str, Any],
         sources: list[dict[str, Any]], calls: list[dict[str, Any]],
+        media: list[dict[str, Any]] | None = None,
+        places: list[dict[str, Any]] | None = None,
     ) -> _Generated:
         gen.usage = _merge_usage(spent, gen.usage)
         gen.sources = sources
         gen.tool_calls = calls
+        gen.media = media or []
+        gen.places = places or []
         return gen
 
     def _structured_steps(
@@ -379,6 +390,8 @@ class RagService:
         spent = {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
         sources: list[dict[str, Any]] = []
         calls: list[dict[str, Any]] = []
+        media: list[dict[str, Any]] = []
+        places: list[dict[str, Any]] = []
         asked: set[str] = set()
         max_rounds = self.settings.max_tool_rounds if tools else 0
 
@@ -407,6 +420,8 @@ class RagService:
                     messages.append(msg)
                     found = list(artifact.get("sources", []))
                     sources += found
+                    media += list(artifact.get("media", []))
+                    places += list(artifact.get("places", []))
                     event = {
                         "name": call.get("name", ""),
                         "query": str(call.get("args", {}).get("query", "")),
@@ -422,7 +437,7 @@ class RagService:
                     self._fallback_llm(model, tools, bool(calls)).invoke(messages),
                     issues=[SCHEMA_FALLBACK],
                 )
-            yield ("gen", self._finalize_gen(gen, spent, sources, calls))
+            yield ("gen", self._finalize_gen(gen, spent, sources, calls, media, places))
             return
 
     async def _astructured_steps(
@@ -433,6 +448,8 @@ class RagService:
         spent = {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
         sources: list[dict[str, Any]] = []
         calls: list[dict[str, Any]] = []
+        media: list[dict[str, Any]] = []
+        places: list[dict[str, Any]] = []
         asked: set[str] = set()
         max_rounds = self.settings.max_tool_rounds if tools else 0
 
@@ -460,6 +477,8 @@ class RagService:
                     messages.append(msg)
                     found = list(artifact.get("sources", []))
                     sources += found
+                    media += list(artifact.get("media", []))
+                    places += list(artifact.get("places", []))
                     event = {
                         "name": call.get("name", ""),
                         "query": str(call.get("args", {}).get("query", "")),
@@ -475,7 +494,7 @@ class RagService:
                     await self._fallback_llm(model, tools, bool(calls)).ainvoke(messages),
                     issues=[SCHEMA_FALLBACK],
                 )
-            yield ("gen", self._finalize_gen(gen, spent, sources, calls))
+            yield ("gen", self._finalize_gen(gen, spent, sources, calls, media, places))
             return
 
     async def _arun_tool(
@@ -587,6 +606,7 @@ class RagService:
 
         # 3단계 — 가진 자료로는 근거를 못 찾았다. 모델에게 도구나 지식으로 넘긴다.
         knowledge_only = False
+        needs_live = False
         if not docs and not latest and not kbo_entries:
             needs_live = bool(
                 latest_info.LIVE_WEB_RE.search(unicodedata.normalize("NFKC", question))
@@ -626,7 +646,7 @@ class RagService:
             return _Prepared(r, latest, freshness, [], "", gate, kbo_entries)
 
         prepared = _Prepared(r, latest, freshness, docs, context, None, kbo_entries,
-                             knowledge_only=knowledge_only)
+                             knowledge_only=knowledge_only, needs_live=needs_live)
         prepared.retrieval = retrieval                      # type: ignore[attr-defined]
         return prepared
 
@@ -635,27 +655,71 @@ class RagService:
         model: str, started: float, session_id: str | None,
         answer_kind: str | None = None, issues: list[str] | None = None,
         extra_sources: Sequence[dict[str, Any]] = (),
+        tool_calls: Sequence[dict[str, Any]] = (),
+        media: Sequence[dict[str, Any]] = (),
+        places: Sequence[dict[str, Any]] = (),
     ) -> TurnResult:
-        status = detect_status(answer_text, tail_max_chars=self.settings.refusal_tail_max_chars)
-        found, dropped = cite.extract(answer_text, prepared.docs)
         usage = dict(usage)
         usage["cost_usd"] = round(_cost(model, usage), 6)
 
         # 도구가 가져온 근거는 prepared 에 없다. 여기서 합치지 않으면 화면에도 API 에도 안 보인다.
         tool_sources = _dedupe_sources(extra_sources)
-        sources = (_rule_sources(prepared.docs) + _latest_sources(prepared.latest)
-                   + _kbo_sources(prepared.kbo) + tool_sources)
-        if prepared.knowledge_only and not tool_sources:
-            sources += _model_source()                  # 정말 아무것도 못 찾았을 때만
+
+        # 실시간 값(순위·기록·일정·하이라이트)을 물었는데 도구를 한 번도 부르지 않았다면
+        # 모델이 기억만으로 답한 것이다. prepare 3단계의 can_tool 은 "도구를 붙일 수 있다"는
+        # 사실만 보고 통과시키고, tool_choice 는 마지막 라운드를 빼면 None 이라 호출은
+        # 선택이다. 실제로 불렀는지는 루프가 끝난 여기서만 확인할 수 있다.
+        #
+        # 부른 뒤 빈손인 것과는 구분한다. 그건 이미 설계된 경로다 — freshness="model" 과
+        # "모델 일반 지식" 출처 칩으로 화면에 드러나고, MODEL_BLOCK_TEXT 가 모델에게
+        # 확인되지 않은 값을 말하지 말라고 지시한다.
+        #
+        # 강등할 때는 answer 만 바꾸지 않는다. status·freshness·sources·인용까지 함께
+        # 맞추지 않으면 "확인 불가" 배지 밑에 출처가 붙는 모순이 생긴다.
+        downgraded = bool(prepared.needs_live and not tool_calls)
+        if downgraded:
+            answer_text = NOT_IN_CONTEXT_REFUSAL
+
+        status = ("phase2_pending" if downgraded else
+                  detect_status(answer_text, tail_max_chars=self.settings.refusal_tail_max_chars))
+        found, dropped = cite.extract(answer_text, prepared.docs)
+
+        # 검색은 늘 무언가를 찾아낸다. BM25 는 "야구"·"구장" 같은 단어로 무관한 조항을
+        # 끌어오는데, prepare 단계의 docs 비우기(r.kind == "latest" and not rule_hit)는
+        # KBO 엔트리가 이미 있을 때만 돈다. 맛집·영상은 도구 결과가 루프 뒤에 오므로
+        # 그 조건에 걸리지 않아, "잠실 맛집" 답변에 규칙 5.10·4.03 이 근거로 붙었다.
+        #
+        # 맛집·영상이 답을 만들었는데 규칙 조항을 하나도 인용하지 않았다면 그 청크는
+        # 쓰이지 않은 잡음이다. 인용이 하나라도 있으면 그대로 둔다 — 규칙과 맛집을
+        # 함께 물은 드문 경우가 실제로 규칙집을 쓴 것이기 때문이다.
+        rule_sources = _rule_sources(prepared.docs)
+        if not found and tool_sources:
+            rule_sources = []
+        live_sources = _latest_sources(prepared.latest) + _kbo_sources(prepared.kbo)
+        sources = rule_sources + live_sources + tool_sources
+
+        # 검색이 규칙집 청크를 가져왔는데 답변이 하나도 인용하지 않았다면, 시스템이
+        # "근거가 있다" 고 믿은 것이 틀린 것이다. knowledge_only 는 docs 가 비었는지만
+        # 보는데 BM25 는 "선수"·"야구" 같은 단어로 늘 무언가를 찾아내므로, 잡음이 들어온
+        # 순간 False 가 되어 모델 지식 경고가 통째로 사라진다.
+        #
+        # 실측: "박해민 생년월일" 이 무관한 조항 6건과 무관한 기사 3건을 근거로 달고,
+        # 기억으로 지어낸 날짜를 "웹 검색 · 근거 9건" 으로 내보냈다. 네 번 물으면 네 번
+        # 다른 날짜가 나왔고 전부 틀렸다(실제 1990-02-24).
+        unused_rulebook = bool(prepared.docs) and not found
+        unverified = unused_rulebook and not live_sources and bool(tool_sources)
+        if not downgraded and ((prepared.knowledge_only and not tool_sources) or unverified):
+            sources += _model_source()
         # 실데이터(live·snapshot)가 웹 스니펫보다 믿을 만하므로 덮어쓰지 않는다.
-        freshness = ("web" if tool_sources and prepared.freshness in {"static", "model"}
+        freshness = ("static" if downgraded else
+                     "web" if tool_sources and prepared.freshness in {"static", "model"}
                      else prepared.freshness)
         result = TurnResult(
             answer=answer_text,
             status=status,
             partial_refusal=has_partial_refusal(answer_text),
             freshness=freshness,
-            needs_web=False,
+            needs_web=downgraded,
             route=prepared.route.to_dict(),
             citations=[c.to_dict() for c in found],
             dropped_citations=dropped,
@@ -669,6 +733,9 @@ class RagService:
             retrieval=getattr(prepared, "retrieval", None),
             answer_kind=answer_kind,
             format_issues=list(issues or []),
+            # 강등했다면 근거가 없다는 뜻이므로 미디어도 내보내지 않는다.
+            media=[] if downgraded else list(media),
+            places=[] if downgraded else list(places),
         )
         self.remember(session_id, question, answer_text)
         return result
@@ -697,6 +764,7 @@ class RagService:
             prepared, question=question, answer_text=gen.text, usage=gen.usage,
             model=model, started=started, session_id=session_id,
             answer_kind=gen.kind, issues=gen.issues, extra_sources=gen.sources,
+            tool_calls=gen.tool_calls, media=gen.media, places=gen.places,
         )
 
     # --- 스트리밍 -----------------------------------------------------------
@@ -746,6 +814,7 @@ class RagService:
             prepared, question=question, answer_text=gen.text, usage=gen.usage,
             model=model, started=started, session_id=session_id,
             answer_kind=gen.kind, issues=gen.issues, extra_sources=gen.sources,
+            tool_calls=gen.tool_calls, media=gen.media, places=gen.places,
         )
         yield {"event": "final", "data": _final_payload(result)}
         yield {"event": "done", "data": {}}
@@ -801,6 +870,7 @@ class RagService:
             prepared, question=question, answer_text=gen.text, usage=gen.usage,
             model=model, started=started, session_id=session_id,
             answer_kind=gen.kind, issues=gen.issues, extra_sources=gen.sources,
+            tool_calls=gen.tool_calls, media=gen.media, places=gen.places,
         )
         yield {"event": "final", "data": _final_payload(result)}
         yield {"event": "done", "data": {}}
@@ -833,19 +903,26 @@ def _token_pieces(gen: _Generated) -> list[str]:
 
 
 def _call_key(call: dict[str, Any]) -> str:
+    """도구 이름 + 인자 전체로 키를 만든다.
+
+    예전에는 args 중 'query' 하나만 봤다. 도구가 web_search 하나뿐이고 그 인자가
+    query 하나뿐일 때는 완전한 키였지만, query 가 없는 도구를 붙이면 키가
+    "<도구이름>|" 로 붕괴해 인자가 전혀 다른 두 번째 호출까지 중복으로 막혔다.
+    """
     args = call.get("args") or {}
-    return f"{call.get('name', '')}|{str(args.get('query', '')).strip()}"
+    norm = json.dumps(args, sort_keys=True, ensure_ascii=False, default=str)
+    return f"{call.get('name', '')}|{norm}"
 
 
 def _repeat_message(call: dict[str, Any]) -> Any:
-    """같은 검색어를 또 부르면 실제로 나가지 않고 그 사실을 알린다.
+    """같은 인자로 또 부르면 실제로 나가지 않고 그 사실을 알린다.
 
-    모델이 원하는 값을 못 찾으면 같은 질의를 되풀이하는 경향이 있다. 결과가 같으므로
-    왕복만 낭비되고 출처가 중복된다. 다른 검색어를 쓰거나 아는 범위에서 답하라고 돌려준다.
+    모델이 원하는 값을 못 찾으면 같은 호출을 되풀이하는 경향이 있다. 결과가 같으므로
+    왕복만 낭비되고 출처가 중복된다. 다른 인자를 쓰거나 아는 범위에서 답하라고 돌려준다.
     """
     return ToolMessage(
-        content="같은 검색어로 이미 검색했습니다. 결과는 위에 있습니다. "
-                "다른 검색어를 쓰거나, 찾은 내용만으로 답하세요.",
+        content="같은 인자로 이미 호출했습니다. 결과는 위에 있습니다. "
+                "다른 인자를 쓰거나, 찾은 내용만으로 답하세요.",
         tool_call_id=call["id"], name=call.get("name") or "unknown",
     )
 
@@ -911,4 +988,5 @@ def _final_payload(result: TurnResult) -> dict[str, Any]:
         "llm_called": result.llm_called,
         "answer_kind": result.answer_kind, "format_ok": result.format_ok,
         "format_issues": result.format_issues,
+        "media": result.media, "places": result.places,
     }
