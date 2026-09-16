@@ -28,6 +28,11 @@ def _env(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("ENABLE_WEB_SEARCH", "off")
     monkeypatch.setenv("ENABLE_KBO_DATA", "off")
+    # 신규 도구도 같은 계약을 따른다 — 테스트는 외부 API 를 부르지 않는다.
+    monkeypatch.setenv("ENABLE_SCHEDULE_TOOL", "off")
+    monkeypatch.setenv("ENABLE_PLACES", "off")
+    monkeypatch.setenv("ENABLE_PLACES_MAP", "off")
+    monkeypatch.setenv("ENABLE_HIGHLIGHTS", "off")
     # 기본이 on 이지만, 켜면 "근거 없으면 거부" 를 검사하는 기존 단언들이 전부 무의미해진다.
     # 모델 지식 경로는 필요한 테스트가 명시적으로 켠다.
     monkeypatch.setenv("ENABLE_MODEL_KNOWLEDGE", "off")

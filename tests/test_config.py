@@ -51,3 +51,25 @@ def test_web_search_auto_requires_key(monkeypatch: pytest.MonkeyPatch) -> None:
     assert off.web_search_enabled is False
     on = Settings(_env_file=None, enable_web_search="auto", tavily_api_key=SecretStr("x"))
     assert on.web_search_enabled is True
+
+
+def test_inline_comment_on_an_empty_key_is_not_a_key() -> None:
+    """python-dotenv 는 값이 비었을 때만 인라인 주석을 떼지 못한다.
+
+    `KEY=            # 설명` 이 통째로 값이 되어 "키가 있다" 로 보이고, 그대로
+    호출이 나가 401 이 난다. 실측으로 확인해 밸리데이터로 막았다.
+    """
+    from baseball.config import Settings
+
+    s = Settings(_env_file=None, google_maps_embed_api_key="            # GCP 콘솔에서 발급")
+    assert s.google_maps_embed_api_key is None
+    assert s.places_map_enabled is False
+
+
+def test_real_keys_still_pass() -> None:
+    from baseball.config import Settings
+
+    s = Settings(_env_file=None, enable_places_map="on",
+                 google_maps_embed_api_key="AIzaSyDUMMYDUMMYDUMMYDUMMYDUMMYDUMMYDUM")
+    assert s.google_maps_embed_api_key is not None
+    assert s.places_map_enabled is True

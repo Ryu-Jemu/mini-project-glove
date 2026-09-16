@@ -30,6 +30,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "openai_api_key", "youtube_kbo_api_key", "tavily_api_key", "langchain_api_key",
+        "google_maps_embed_api_key",
         mode="before",
     )
     @classmethod
@@ -39,10 +40,13 @@ class Settings(BaseSettings):
         `.env` 에 `TAVILY_API_KEY=` 처럼 줄만 남기면 값이 ""(빈 문자열)로 들어와
         `is None` 가드가 전부 통과해 버린다. 그 결과 doctor 가 없는 키를 ok 로
         표시하고 web_search_enabled 가 참이 되어 매번 실패하는 호출이 나간다.
+
+        `#` 로 시작하는 값도 '없음' 으로 본다. python-dotenv 는 값이 비어 있을 때만
+        인라인 주석을 떼지 못해서, `KEY=            # 설명` 이 통째로 값이 된다.
+        실측으로 확인했다 — 그러면 키가 있는 것처럼 보여 호출이 나가고 401 이 난다.
         """
-        if isinstance(value, str) and not value.strip():
-            return None
-        if isinstance(value, SecretStr) and not value.get_secret_value().strip():
+        raw = value.get_secret_value() if isinstance(value, SecretStr) else value
+        if isinstance(raw, str) and (not raw.strip() or raw.lstrip().startswith("#")):
             return None
         return value
 
@@ -128,6 +132,25 @@ class Settings(BaseSettings):
     kbo_schedule_ttl_seconds: int = 1800
     kbo_context_max_tokens: int = 1000
     kbo_schedule_max_games: int = 10
+    # 하이라이트는 지난 경기다. start=today 면 과거 경기가 스냅샷에 아예 없다.
+    # 창은 전역에 하나여야 한다 — 캐시 키가 kind 문자열뿐이라 창이 둘이면 서로 덮어쓴다.
+    kbo_schedule_lookback_days: int = 14
+
+    # --- 신규 도구 (기본 off. tests/conftest.py 의 "테스트는 외부 API 를 부르지 않는다" 계약) ---
+    enable_schedule_tool: Literal["on", "off"] = "off"
+    enable_places: Literal["on", "off"] = "off"
+    enable_places_map: Literal["on", "off"] = "off"
+    enable_highlights: Literal["on", "off"] = "off"
+    google_maps_embed_api_key: SecretStr | None = None
+    places_max_results: int = 4                    # tunable
+    # 기본 0.5 보다 높다. Tavily 는 맞는 게 없어도 채움용 결과를 주는데,
+    # 맛집에서는 그게 곧 그럴듯한 가짜 가게다. 무응답이 오답보다 낫다.
+    places_min_score: float = 0.6                  # tunable
+    places_cache_ttl_seconds: int = 604800         # 7일. 가게는 천천히 바뀐다
+    youtube_http_timeout_seconds: float = 4.0
+    # YouTube ToS: 저장한 API 데이터는 30일 내 갱신하거나 지워야 한다. 7일이면 넉넉히 만족한다.
+    youtube_cache_ttl_seconds: int = 604800
+    highlight_max_videos: int = 4
 
     @property
     def kbo_data_enabled(self) -> bool:
@@ -140,6 +163,28 @@ class Settings(BaseSettings):
     @property
     def answer_schema_enabled(self) -> bool:
         return self.enable_answer_schema == "on"
+
+    @property
+    def schedule_tool_enabled(self) -> bool:
+        """일정 도구는 KBO 데이터에만 기댄다. Tavily 와 무관하다."""
+        return self.enable_schedule_tool == "on" and self.kbo_data_enabled
+
+    @property
+    def places_enabled(self) -> bool:
+        """맛집은 Tavily 를 쓰므로 웹 검색이 살아 있어야 한다."""
+        return self.enable_places == "on" and self.web_search_enabled
+
+    @property
+    def places_map_enabled(self) -> bool:
+        """지도는 키가 없으면 조용히 생략한다. 기능 저하는 허용하되 오류는 내지 않는다."""
+        return (self.enable_places_map == "on"
+                and self.google_maps_embed_api_key is not None)
+
+    @property
+    def highlights_enabled(self) -> bool:
+        """하이라이트는 Tavily 로 찾고 YouTube API 로 검증한다. 둘 다 필요하다."""
+        return (self.enable_highlights == "on" and self.web_search_enabled
+                and self.youtube_kbo_api_key is not None)
 
     @property
     def web_search_enabled(self) -> bool:
