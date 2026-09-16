@@ -43,6 +43,33 @@ if "pending" not in st.session_state:
     st.session_state.pending = None
 
 
+def render_final(final: dict) -> None:
+    """답변 밑에 붙는 상태 줄. 기록 다시 그리기와 방금 받은 답변이 같은 모양이어야 한다.
+
+    두 자리에 같은 코드가 따로 있던 탓에 새 필드를 넣을 때마다 한쪽만 고쳐졌다.
+    """
+    label, color, icon = STATUS_BADGE.get(final["status"], ("처리됨", "gray", None))
+    st.badge(label.format(n=len(final.get("sources", []))), color=color, icon=icon)
+
+    notice = _grounding_notice(final)
+    if notice:
+        with st.container(key=f"partial-notice-{uuid.uuid4().hex[:6]}"):
+            st.html(f'<div class="st-key-partial-notice">{notice}</div>')
+
+    render_sources(final.get("sources", []))
+
+    usage = final.get("usage", {})
+    st.caption(
+        f"{FRESHNESS_LABEL.get(final.get('freshness'), final.get('freshness'))} · "
+        f"{usage.get('input_tokens', 0)}/{usage.get('output_tokens', 0)} tok · "
+        f"${usage.get('cost_usd', 0):.4f} · {final.get('latency_ms', 0)}ms"
+    )
+    # 형식 검사가 어긋난 턴은 눈으로 구분되지 않으면 없는 것과 같다.
+    issues = final.get("format_issues") or []
+    if issues:
+        st.caption(f"형식 점검: {', '.join(issues)}")
+
+
 def _grounding_notice(final: dict) -> str | None:
     """근거 상태가 평소와 다르면 알린다.
 
@@ -129,19 +156,7 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
         if message.get("final"):
             final = message["final"]
-            label, color, icon = STATUS_BADGE.get(final["status"], ("처리됨", "gray", None))
-            st.badge(label.format(n=len(final.get("sources", []))), color=color, icon=icon)
-            notice = _grounding_notice(final)
-            if notice:
-                with st.container(key=f"partial-notice-{uuid.uuid4().hex[:6]}"):
-                    st.html(f'<div class="st-key-partial-notice">{notice}</div>')
-            render_sources(final.get("sources", []))
-            usage = final.get("usage", {})
-            st.caption(
-                f"{FRESHNESS_LABEL.get(final.get('freshness'), final.get('freshness'))} · "
-                f"{usage.get('input_tokens', 0)}/{usage.get('output_tokens', 0)} tok · "
-                f"${usage.get('cost_usd', 0):.4f} · {final.get('latency_ms', 0)}ms"
-            )
+            render_final(final)
 
 typed = st.chat_input("야구 규칙을 물어보세요", submit_mode="disable")
 question = typed or st.session_state.pending
@@ -192,15 +207,7 @@ if question:
 
         final_payload = captured.get("final", {})
         if final_payload:
-            label, color, icon = STATUS_BADGE.get(final_payload["status"], ("처리됨", "gray", None))
-            st.badge(label.format(n=len(final_payload.get("sources", []))), color=color, icon=icon)
-            render_sources(final_payload.get("sources", []))
-            usage = final_payload.get("usage", {})
-            st.caption(
-                f"{FRESHNESS_LABEL.get(final_payload.get('freshness'), final_payload.get('freshness'))} · "
-                f"{usage.get('input_tokens', 0)}/{usage.get('output_tokens', 0)} tok · "
-                f"${usage.get('cost_usd', 0):.4f} · {final_payload.get('latency_ms', 0)}ms"
-            )
+            render_final(final_payload)
     st.session_state.messages.append(
         {"role": "assistant", "content": answer or final_payload.get("answer", ""), "final": final_payload}
     )

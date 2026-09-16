@@ -44,6 +44,10 @@ async def test_chat_schema(app) -> None:
         assert body["route"] == {"kind": "rule", "by": "keyword"}
         assert len(body["sources"]) == 1
         assert [c_["rule_id"] for c_ in body["citations"]] == ["5.09"]
+        # 답변 스키마가 내보내는 세 필드. 기본값이 있어 구버전 클라이언트도 깨지지 않는다.
+        assert body["format_ok"] is True
+        assert body["format_issues"] == []
+        assert body["answer_kind"] in {"term_rule", "situation", "entity", "latest", None}
 
 
 async def test_empty_question_is_422(app) -> None:
@@ -91,6 +95,9 @@ async def test_stream_final_payload(app) -> None:
     assert payload["partial_refusal"] is False
     assert payload["llm_called"] is True
     assert set(payload["usage"]) >= {"input_tokens", "output_tokens", "cache_read", "cost_usd"}
+    assert payload["format_ok"] is True
+    assert payload["format_issues"] == []
+    assert "answer_kind" in payload
 
 
 async def test_session_reset(app, service) -> None:

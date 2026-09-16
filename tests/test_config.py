@@ -16,6 +16,15 @@ def test_env_var_names_match_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.embedding_dimensions == 1536
     assert settings.chat_history_max_messages == 6
     assert len(settings.tavily_include_domain_list) == 5
+    # 새 노브도 같은 약속을 지켜야 한다. 이름이 어긋나면 배포 시크릿이 조용히 무시된다.
+    assert settings.answer_schema_enabled is False
+    assert settings.answer_max_output_tokens == 900
+    assert settings.enable_scope_gate == "off"
+    assert settings.scope_gate_llm == "off"
+    assert settings.model_knowledge_enabled is False
+    assert settings.abstain_on_dense_failure is True
+    assert settings.abstain_bm25_reference == "sentence"
+    assert settings.context_min_docs == 5
 
 
 def test_secrets_are_masked(settings) -> None:

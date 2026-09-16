@@ -218,10 +218,10 @@ class RagService:
     def reset(self, session_id: str) -> None:
         self.sessions.pop(session_id, None)
 
-    def llm(self, model: str) -> Any:
+    def llm(self, model: str, *, max_tokens: int | None = None) -> Any:
         if self._llm is not None:
             return self._llm
-        return build_llm(model, self.settings)
+        return build_llm(model, self.settings, max_tokens=max_tokens)
 
     def structured_llm(self, model: str) -> Any:
         if self._llm is not None:                       # 테스트 주입 seam
@@ -304,7 +304,12 @@ class RagService:
             return gen
         # 파싱 실패의 대표 원인은 출력 절단이고, 그때 raw.content 는 반쪽 JSON 이라 쓸 수 없다.
         # response_format 없이 같은 메시지로 딱 한 번 다시 부른다(턴당 최대 1회).
-        return self._plain_result(self.llm(model).invoke(messages), issues=[SCHEMA_FALLBACK])
+        # 절단 때문에 생긴 재호출이므로 같은 상한을 그대로 준다. 상한 없이 부르면
+        # 실패한 턴만 출력 비용이 무제한으로 열린다.
+        return self._plain_result(
+            self.llm(model, max_tokens=self.settings.answer_max_output_tokens).invoke(messages),
+            issues=[SCHEMA_FALLBACK],
+        )
 
     async def _agenerate(
         self, prepared: _Prepared, *, question: str, session_id: str | None, model: str
@@ -318,7 +323,9 @@ class RagService:
         if gen is not None:
             return gen
         return self._plain_result(
-            await self.llm(model).ainvoke(messages), issues=[SCHEMA_FALLBACK]
+            await self.llm(model, max_tokens=self.settings.answer_max_output_tokens)
+            .ainvoke(messages),
+            issues=[SCHEMA_FALLBACK],
         )
 
     # --- 턴 준비(동기/스트림 공용) -----------------------------------------
