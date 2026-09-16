@@ -91,7 +91,7 @@ def kbo_topics(question: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
 @dataclass(frozen=True)
 class Route:
     kind: RouteKind
-    by: Literal["keyword", "llm"]
+    by: Literal["keyword", "llm", "scope"]
     rule_hit: bool
     latest_hit: bool
     domain_hit: bool = False

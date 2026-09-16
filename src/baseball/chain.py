@@ -1,6 +1,7 @@
 """턴 흐름: route → (최신정보) → 검색 → {context} 조립 → verbatim 프롬프트 1회 호출."""
 from __future__ import annotations
 
+import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -11,7 +12,7 @@ from pydantic import ValidationError
 
 from baseball import answer_lint, answer_render
 from baseball import citations as cite
-from baseball import latest_info
+from baseball import latest_info, scope
 from baseball.answer_schema import RESPONSE_FORMAT, AnswerDoc
 from baseball.config import Settings, get_settings
 from baseball.context import KboEntry, LatestEntry, format_context
@@ -24,6 +25,8 @@ from baseball.prompts import (
     has_partial_refusal,
 )
 from baseball.router import Route, route as route_question
+
+log = logging.getLogger(__name__)
 
 # (input, output, cached_input) USD per 1M tokens
 PRICES: dict[str, tuple[float, float, float]] = {
@@ -165,12 +168,13 @@ def _latest_sources(entries: Iterable[LatestEntry]) -> list[dict[str, Any]]:
 class RagService:
     def __init__(
         self, settings: Settings, retriever: Any, *,
-        llm: Any | None = None, router_llm: Any | None = None,
+        llm: Any | None = None, router_llm: Any | None = None, scope_llm: Any | None = None,
     ) -> None:
         self.settings = settings
         self.retriever = retriever
         self._llm = llm
         self._router_llm = router_llm
+        self._scope_llm = scope_llm
         self.sessions: dict[str, deque[BaseMessage]] = {}
 
     @classmethod
@@ -303,6 +307,18 @@ class RagService:
 
     # --- 턴 준비(동기/스트림 공용) -----------------------------------------
     def prepare(self, question: str, *, model: str) -> _Prepared:
+        # 야구 외의 질문은 검색도 답변도 하지 않는다. 대부분 사전에서 끝나 비용이 들지 않는다.
+        verdict = scope.check(question, llm=self._scope_llm, settings=self.settings)
+        if verdict.blocked:
+            log.info("scope 차단: by=%s hits=%s", verdict.by, verdict.hits)
+            blocked = Route("off_topic", "scope", False, False)
+            gate = TurnResult(
+                answer=OFF_TOPIC_REFUSAL, status="out_of_scope", freshness="static",
+                route=blocked.to_dict(), llm_called=False, model=model,
+            )
+            return _Prepared(blocked, [], "static", [], "", gate)
+
+        # 사전이 못 거른 오프토픽은 라우터가 한 번 더 본다.
         r = route_question(question, llm=self._router_llm, settings=self.settings)
 
         if r.kind == "off_topic":

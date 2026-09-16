@@ -73,6 +73,12 @@ class Settings(BaseSettings):
     # 하한을 적용하기 전에 남겨 둘 상위 문서 수. 단채널만 찾은 정답이 잘려 나가는 것을 막는다. tunable
     context_min_docs: int = 3
 
+    # --- 범위 게이트 ---
+    # 야구 외 질문을 검색·답변 이전에 막는다. off 면 라우터의 off_topic 분기만 남는다.
+    enable_scope_gate: Literal["on", "off"] = "on"
+    # 사전으로 판정이 서지 않을 때만 저가 LLM 을 한 번 부른다. off 면 그런 질문은 통과시킨다.
+    scope_gate_llm: Literal["auto", "off"] = "auto"
+
     # --- 최신정보 ---
     enable_web_search: Literal["auto", "on", "off"] = "auto"
     tavily_include_domains: str = (
