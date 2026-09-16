@@ -11,9 +11,36 @@ YOUTUBE_KEY_RE = re.compile(r"AIza[0-9A-Za-z_\-]{35}")
 
 
 def _openai(settings: Settings) -> str:
+    """존재만 보면 무효 키가 ok 로 통과한다. 1토큰을 실제로 임베딩해 확인한다.
+
+    retriever 는 임베딩 실패를 dense_failed 로 삼키고(retriever.py), abstain 은 그것을
+    '자료에 없음'의 증거로 쓴다. 그래서 죽은 키가 내용 거부로 둔갑한다. 여기서 잡는다.
+    text-embedding-3-large 1토큰은 $0.0000003 미만이라 비용은 사실상 없다.
+    """
     if settings.openai_api_key is None:
         return "OPENAI missing (.env 확인) — FAIL"
-    return f"OPENAI ok (model={settings.openai_chat_model}, dims={settings.embedding_dimensions})"
+
+    from langchain_openai import OpenAIEmbeddings
+
+    try:
+        vector = OpenAIEmbeddings(
+            model=settings.openai_embedding_model,
+            dimensions=settings.embedding_dimensions,
+            max_retries=0,                    # 401 을 다섯 번 재시도할 이유가 없다
+            timeout=10.0,
+            api_key=settings.openai_api_key,
+        ).embed_query("확인")
+    except Exception as exc:                  # noqa: BLE001
+        status = getattr(exc, "status_code", None)
+        if status in (401, 403) or type(exc).__name__ in {"AuthenticationError", "PermissionDeniedError"}:
+            return f"OPENAI 키가 거부됨 (HTTP {status or 401}) — .env 의 OPENAI_API_KEY 확인 — FAIL"
+        # 네트워크·한도 장애는 키의 문제가 아니다. make setup 을 여기서 멈추지 않는다.
+        return f"OPENAI 확인 불가 ({type(exc).__name__}) — 네트워크·사용 한도 확인 (soft warning)"
+
+    if len(vector) != settings.embedding_dimensions:
+        return (f"OPENAI dims mismatch: {len(vector)} != {settings.embedding_dimensions} "
+                f"— EMBEDDING_DIMENSIONS 확인")
+    return f"OPENAI ok (model={settings.openai_chat_model}, dims={len(vector)}, 키 실호출 확인)"
 
 
 def _postgres(settings: Settings) -> str:
