@@ -4,12 +4,15 @@ from __future__ import annotations
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Iterable, Sequence
+from typing import Any, AsyncIterator, Iterable, Iterator, Sequence
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from pydantic import ValidationError
 
+from baseball import answer_lint, answer_render
 from baseball import citations as cite
 from baseball import latest_info
+from baseball.answer_schema import RESPONSE_FORMAT, AnswerDoc
 from baseball.config import Settings, get_settings
 from baseball.context import KboEntry, LatestEntry, format_context
 from baseball.prompts import (
@@ -28,6 +31,7 @@ PRICES: dict[str, tuple[float, float, float]] = {
     "gpt-5.6-luna": (0.20, 1.20, 0.02),
 }
 RULEBOOK_AS_OF = "2026-01-01"
+SCHEMA_FALLBACK = "SCHEMA_FALLBACK"
 
 QUOTA_MESSAGE = (
     "OpenAI 사용 한도를 초과해 답변을 만들 수 없습니다. "
@@ -45,18 +49,38 @@ def is_quota_error(exc: BaseException) -> bool:
                                    "exceeded your current quota", "billing_hard_limit_reached"))
 
 
-def build_llm(model: str, settings: Settings) -> Any:
+def build_llm(
+    model: str, settings: Settings, *, streaming: bool = True, max_tokens: int | None = None
+) -> Any:
     from langchain_openai import ChatOpenAI
 
     kw: dict[str, Any] = {
         "model": model, "timeout": 30, "max_retries": 3,
-        "streaming": True, "stream_usage": True, "api_key": settings.openai_api_key,
+        "streaming": streaming, "stream_usage": True, "api_key": settings.openai_api_key,
     }
+    if max_tokens:
+        kw["max_tokens"] = max_tokens
     if model.startswith("gpt-5."):
         kw["reasoning_effort"] = "none"     # gpt-5.x 는 temperature 미지원
     else:
         kw["temperature"] = 0
     return ChatOpenAI(**kw).with_config(tags=["final_answer"], run_name="final_answer")
+
+
+def build_structured_llm(model: str, settings: Settings) -> Any:
+    """답변 구조를 강제하는 LLM. 프롬프트가 아니라 response_format 으로 건다.
+
+    streaming=False 가 중요하다. 생성자에 streaming=True 를 주면 model_fields_set 에
+    남아 _should_stream 이 참이 되고 .invoke() 조차 스트림 경로로 간다.
+    include_raw=True 도 중요하다. False 면 llm | parser 가 되어 AIMessage 가 사라지고
+    _usage_of 가 붙을 곳이 없어 토큰·비용이 조용히 0 이 된다.
+    """
+    llm = build_llm(
+        model, settings, streaming=False, max_tokens=settings.answer_max_output_tokens
+    )
+    return llm.with_structured_output(
+        RESPONSE_FORMAT, method="json_schema", strict=True, include_raw=True
+    )
 
 
 def _cost(model: str, usage: dict[str, Any]) -> float:
@@ -89,6 +113,27 @@ class TurnResult:
     session_id: str | None = None
     prompt_sha: str = PROMPT_SHA
     retrieval: Any | None = None
+    answer_kind: str | None = None
+    format_issues: list[str] = field(default_factory=list)
+
+    @property
+    def format_ok(self) -> bool:
+        """스키마 경로가 온전히 돌았는가. 폴백과 blocking 린트는 실패로 본다."""
+        return not any(
+            code in answer_lint.BLOCKING_CODES or code == SCHEMA_FALLBACK
+            for code in self.format_issues
+        )
+
+
+@dataclass
+class _Generated:
+    """한 번의 생성 결과. blocks 는 SSE token 이벤트 단위다."""
+
+    text: str
+    usage: dict[str, Any]
+    blocks: list[str] = field(default_factory=list)
+    kind: str | None = None
+    issues: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -158,6 +203,104 @@ class RagService:
             return self._llm
         return build_llm(model, self.settings)
 
+    def structured_llm(self, model: str) -> Any:
+        if self._llm is not None:                       # 테스트 주입 seam
+            return self._llm.with_structured_output(
+                RESPONSE_FORMAT, method="json_schema", strict=True, include_raw=True
+            )
+        return build_structured_llm(model, self.settings)
+
+    # --- 생성(동기/비동기 공용 조각) ----------------------------------------
+    def _render_messages(
+        self, prepared: _Prepared, *, question: str, session_id: str | None
+    ) -> list[BaseMessage]:
+        return answer_prompt(self.settings.chat_history_max_messages).format_messages(
+            question=question, context=prepared.context, chat_history=self.history(session_id),
+        )
+
+    def _plain_result(self, ai: Any, *, issues: list[str]) -> _Generated:
+        text = ai.content if isinstance(ai.content, str) else str(ai.content)
+        return _Generated(
+            text=text, usage=_usage_of(ai), blocks=[text] if text else [], issues=issues
+        )
+
+    def _structured_result(self, out: Any, prepared: _Prepared) -> _Generated | None:
+        """구조화 응답을 린트·렌더까지 마친다. 파싱·검증에 실패하면 None."""
+        if not isinstance(out, dict):
+            return None
+        usage = _usage_of(out.get("raw"))
+        parsed = out.get("parsed")
+        if parsed is None:
+            return None
+        try:
+            doc = AnswerDoc.model_validate(parsed)
+        except ValidationError:
+            return None
+
+        issues = answer_lint.check(doc, prepared.docs)
+        if answer_lint.blocking(issues):
+            # 본문에 거부 문장이 섞이거나 headline 이 비면 화면이 망가진다.
+            # 반쪽짜리를 보여 주느니 순수 거부 문장으로 떨어뜨린다.
+            doc = doc.model_copy(update={"answerable": False, "refusal": "not_in_context"})
+        return _Generated(
+            text=answer_render.render(doc), usage=usage,
+            blocks=answer_render.render_blocks(doc), kind=doc.kind,
+            issues=answer_lint.codes(issues),
+        )
+
+    def _stream_plain(
+        self, messages: list[BaseMessage], model: str, parts: list[str], usage: dict[str, Any]
+    ) -> Iterator[str]:
+        """레거시 토큰 단위 스트리밍. parts·usage 를 채우면서 조각을 흘린다."""
+        for chunk in self.llm(model).stream(messages):
+            piece = chunk.content if isinstance(chunk.content, str) else ""
+            if piece:
+                parts.append(piece)
+                yield piece
+            chunk_usage = _usage_of(chunk)
+            if chunk_usage.get("output_tokens") or chunk_usage.get("input_tokens"):
+                usage.update(chunk_usage)
+
+    async def _astream_plain(
+        self, messages: list[BaseMessage], model: str, parts: list[str], usage: dict[str, Any]
+    ) -> AsyncIterator[str]:
+        async for chunk in self.llm(model).astream(messages):
+            piece = chunk.content if isinstance(chunk.content, str) else ""
+            if piece:
+                parts.append(piece)
+                yield piece
+            chunk_usage = _usage_of(chunk)
+            if chunk_usage.get("output_tokens") or chunk_usage.get("input_tokens"):
+                usage.update(chunk_usage)
+
+    def _generate(
+        self, prepared: _Prepared, *, question: str, session_id: str | None, model: str
+    ) -> _Generated:
+        messages = self._render_messages(prepared, question=question, session_id=session_id)
+        if not self.settings.answer_schema_enabled:
+            return self._plain_result(self.llm(model).invoke(messages), issues=[])
+        gen = self._structured_result(self.structured_llm(model).invoke(messages), prepared)
+        if gen is not None:
+            return gen
+        # 파싱 실패의 대표 원인은 출력 절단이고, 그때 raw.content 는 반쪽 JSON 이라 쓸 수 없다.
+        # response_format 없이 같은 메시지로 딱 한 번 다시 부른다(턴당 최대 1회).
+        return self._plain_result(self.llm(model).invoke(messages), issues=[SCHEMA_FALLBACK])
+
+    async def _agenerate(
+        self, prepared: _Prepared, *, question: str, session_id: str | None, model: str
+    ) -> _Generated:
+        """_generate 의 비동기 쌍둥이. SSE 경로가 이벤트 루프를 막지 않게 한다."""
+        messages = self._render_messages(prepared, question=question, session_id=session_id)
+        if not self.settings.answer_schema_enabled:
+            return self._plain_result(await self.llm(model).ainvoke(messages), issues=[])
+        out = await self.structured_llm(model).ainvoke(messages)
+        gen = self._structured_result(out, prepared)
+        if gen is not None:
+            return gen
+        return self._plain_result(
+            await self.llm(model).ainvoke(messages), issues=[SCHEMA_FALLBACK]
+        )
+
     # --- 턴 준비(동기/스트림 공용) -----------------------------------------
     def prepare(self, question: str, *, model: str) -> _Prepared:
         r = route_question(question, llm=self._router_llm, settings=self.settings)
@@ -224,6 +367,7 @@ class RagService:
     def _finish(
         self, prepared: _Prepared, *, question: str, answer_text: str, usage: dict[str, Any],
         model: str, started: float, session_id: str | None,
+        answer_kind: str | None = None, issues: list[str] | None = None,
     ) -> TurnResult:
         status = detect_status(answer_text, tail_max_chars=self.settings.refusal_tail_max_chars)
         found, dropped = cite.extract(answer_text, prepared.docs)
@@ -246,6 +390,8 @@ class RagService:
             model=model,
             session_id=session_id,
             retrieval=getattr(prepared, "retrieval", None),
+            answer_kind=answer_kind,
+            format_issues=list(issues or []),
         )
         self.remember(session_id, question, answer_text)
         return result
@@ -269,15 +415,11 @@ class RagService:
         if prepared.gate is not None:
             return self._gate_result(prepared.gate, question=question, session_id=session_id, started=started)
 
-        messages = answer_prompt(self.settings.chat_history_max_messages).format_messages(
-            question=question, context=prepared.context, chat_history=self.history(session_id),
-        )
-        ai = self.llm(model).invoke(messages)
-        text = ai.content if isinstance(ai.content, str) else str(ai.content)
-        usage = _usage_of(ai)
+        gen = self._generate(prepared, question=question, session_id=session_id, model=model)
         return self._finish(
-            prepared, question=question, answer_text=text, usage=usage,
+            prepared, question=question, answer_text=gen.text, usage=gen.usage,
             model=model, started=started, session_id=session_id,
+            answer_kind=gen.kind, issues=gen.issues,
         )
 
     # --- 스트리밍 -----------------------------------------------------------
@@ -302,23 +444,24 @@ class RagService:
         sources = _rule_sources(prepared.docs) + _latest_sources(prepared.latest) + _kbo_sources(prepared.kbo)
         yield {"event": "sources", "data": {"sources": sources}}
 
-        messages = answer_prompt(self.settings.chat_history_max_messages).format_messages(
-            question=question, context=prepared.context, chat_history=self.history(session_id),
-        )
-        parts: list[str] = []
-        usage: dict[str, Any] = {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
-        async for chunk in self.llm(model).astream(messages):
-            piece = chunk.content if isinstance(chunk.content, str) else ""
-            if piece:
-                parts.append(piece)
+        yield {"event": "status", "data": {"status": "generating", "llm_called": True}}
+        if self.settings.answer_schema_enabled:
+            gen = await self._agenerate(
+                prepared, question=question, session_id=session_id, model=model
+            )
+            for piece in _token_pieces(gen):
                 yield {"event": "token", "data": {"text": piece}}
-            chunk_usage = _usage_of(chunk)
-            if chunk_usage.get("output_tokens") or chunk_usage.get("input_tokens"):
-                usage = chunk_usage
-        text = "".join(parts)
+        else:
+            # 롤백 레버는 형식뿐 아니라 토큰 단위 스트리밍까지 되돌려야 의미가 있다.
+            messages = self._render_messages(prepared, question=question, session_id=session_id)
+            parts, usage = [], {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
+            async for piece in self._astream_plain(messages, model, parts, usage):
+                yield {"event": "token", "data": {"text": piece}}
+            gen = _Generated(text="".join(parts), usage=usage)
         result = self._finish(
-            prepared, question=question, answer_text=text, usage=usage,
+            prepared, question=question, answer_text=gen.text, usage=gen.usage,
             model=model, started=started, session_id=session_id,
+            answer_kind=gen.kind, issues=gen.issues,
         )
         yield {"event": "final", "data": _final_payload(result)}
         yield {"event": "done", "data": {}}
@@ -350,23 +493,21 @@ class RagService:
         sources = _rule_sources(prepared.docs) + _latest_sources(prepared.latest) + _kbo_sources(prepared.kbo)
         yield {"event": "sources", "data": {"sources": sources}}
 
-        messages = answer_prompt(self.settings.chat_history_max_messages).format_messages(
-            question=question, context=prepared.context, chat_history=self.history(session_id),
-        )
-        parts: list[str] = []
-        usage: dict[str, Any] = {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
-        for chunk in self.llm(model).stream(messages):
-            piece = chunk.content if isinstance(chunk.content, str) else ""
-            if piece:
-                parts.append(piece)
+        yield {"event": "status", "data": {"status": "generating", "llm_called": True}}
+        if self.settings.answer_schema_enabled:
+            gen = self._generate(prepared, question=question, session_id=session_id, model=model)
+            for piece in _token_pieces(gen):
                 yield {"event": "token", "data": {"text": piece}}
-            chunk_usage = _usage_of(chunk)
-            if chunk_usage.get("output_tokens") or chunk_usage.get("input_tokens"):
-                usage = chunk_usage
-        text = "".join(parts)
+        else:
+            messages = self._render_messages(prepared, question=question, session_id=session_id)
+            parts, usage = [], {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
+            for piece in self._stream_plain(messages, model, parts, usage):
+                yield {"event": "token", "data": {"text": piece}}
+            gen = _Generated(text="".join(parts), usage=usage)
         result = self._finish(
-            prepared, question=question, answer_text=text, usage=usage,
+            prepared, question=question, answer_text=gen.text, usage=gen.usage,
             model=model, started=started, session_id=session_id,
+            answer_kind=gen.kind, issues=gen.issues,
         )
         yield {"event": "final", "data": _final_payload(result)}
         yield {"event": "done", "data": {}}
@@ -384,6 +525,18 @@ def _kbo_sources(entries: Sequence[Any]) -> list[dict[str, Any]]:
         out.append({"kind": "kbo", "label": e.label, "url": e.source_url,
                     "as_of": e.as_of, "confidence": status})
     return out
+
+
+def _token_pieces(gen: _Generated) -> list[str]:
+    """블록을 이어 붙이면 정확히 gen.text 가 되도록 구분자를 붙여 쪼갠다.
+
+    UI 는 token 조각을 그대로 이어 붙이므로(st.write_stream) 블록 사이 빈 줄을
+    여기서 넣지 않으면 마크다운 리스트가 앞 문단에 붙어 버린다.
+    """
+    if not gen.blocks:
+        return [gen.text] if gen.text else []
+    last = len(gen.blocks) - 1
+    return [b if i == last else b + "\n\n" for i, b in enumerate(gen.blocks)]
 
 
 def _usage_of(message: Any) -> dict[str, Any]:
@@ -406,4 +559,6 @@ def _final_payload(result: TurnResult) -> dict[str, Any]:
         "latency_ms": result.latency_ms, "prompt_sha": result.prompt_sha,
         "model": result.model, "session_id": result.session_id,
         "llm_called": result.llm_called,
+        "answer_kind": result.answer_kind, "format_ok": result.format_ok,
+        "format_issues": result.format_issues,
     }

@@ -126,7 +126,7 @@ Windows 에서는 절차를 그대로 쓸 수 없으므로 WSL2 환경에서 진
    make test
    make doctor
    ```
-   - `make test` 는 `95 passed` 가 출력되면 정상이다. API 키가 없어도 실행된다.
+   - `make test` 는 `343 passed` 가 출력되면 정상이다. API 키가 없어도 실행된다.
    - `make doctor` 는 11줄을 출력한다. `OPENAI`·`PG`·`MinIO`·`Kiwi`·`index`·`KBO teams`·`prompts` 일곱 줄이 `ok` 이면 정상이다.
    - `접근 코드` 줄은 제한 설정 여부를 알려 준다. 값은 출력하지 않는다.
    - `Tavily`·`LangSmith`·`YouTube` 는 선택 항목이다. 키를 넣지 않았다면 `absent` 로 표시되며 문제가 아니다.
@@ -200,6 +200,8 @@ Windows 에서는 절차를 그대로 쓸 수 없으므로 WSL2 환경에서 진
 - `prompts/` 디렉터리의 세 파일은 수정하지 않는다.
   `system_prompt.txt` 와 `human_prompt.txt` 는 수정하면 테스트가 실패하고 앱이 기동하지 않는다.
   `router_v1.md` 는 자동 검증이 없으므로 더욱 주의한다.
+  답변 형식을 바꾸고 싶으면 프롬프트가 아니라 `src/baseball/answer_schema.py` 의 필드 description
+  과 `src/baseball/answer_render.py` 의 섹션 순서를 고친다(`docs/설계서v1.md` §6-A).
 - 모든 포트는 외부에 공개하지 않는다.
 
 ---

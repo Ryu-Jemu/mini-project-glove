@@ -79,6 +79,12 @@ class Settings(BaseSettings):
     chat_history_max_messages: int = 8
     refusal_tail_max_chars: int = 40
 
+    # --- 답변 스키마 (tunable) ---
+    # off 면 구조화 출력 없이 평문으로 답한다. 롤백 레버이자 품질 A/B 레버다.
+    enable_answer_schema: Literal["on", "off"] = "on"
+    # JSON 은 평문보다 길다. 너무 낮으면 잘려서 폴백 재호출이 돌아 지연이 두 배가 된다.
+    answer_max_output_tokens: int = 1600
+
     # --- API/UI ---
     api_base_url: str = "http://127.0.0.1:8000"
     cors_origins: str = "http://127.0.0.1:8501,http://localhost:8501"
@@ -107,6 +113,10 @@ class Settings(BaseSettings):
     @property
     def kbo_data_enabled(self) -> bool:
         return self.enable_kbo_data == "on"
+
+    @property
+    def answer_schema_enabled(self) -> bool:
+        return self.enable_answer_schema == "on"
 
     @property
     def web_search_enabled(self) -> bool:

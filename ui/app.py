@@ -145,7 +145,10 @@ if question:
                     if event == "route":
                         status.update(label=f"의도 분류: {data.get('kind')} ({data.get('by')})")
                     elif event == "status":
-                        status.update(label="근거 수집 중…")
+                        # 구조화 출력은 완성될 때까지 화면이 비므로 이 라벨이 유일한 피드백이다.
+                        status.update(label="답변을 구성하는 중…"
+                                      if data.get("status") == "generating"
+                                      else "근거 수집 중…")
                     elif event == "sources":
                         status.update(label=f"근거 {len(data.get('sources', []))}건 확보 · 답변 생성 중…")
                     elif event == "token":

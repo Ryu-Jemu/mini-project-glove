@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from operator import itemgetter
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from helpers import make_doc
+from helpers import make_answer_payload, make_doc
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -74,6 +75,37 @@ def fake_retriever() -> FakeRetriever:
     return FakeRetriever()
 
 
+def fake_structured_model(responses: list[str]):
+    """with_structured_output 을 지원하는 가짜 채팅 모델.
+
+    FakeListChatModel 은 이걸 구현하지 않는다(BaseChatModel 기본이 NotImplementedError).
+    langchain-openai 가 include_raw=True 에서 만드는 모양
+    (RunnableMap(raw=llm) | assign(parsed, parsing_error) + 폴백)을 그대로 재현한다.
+    덕분에 깨진 JSON 을 주면 폴백 분기까지 가짜로 검사할 수 있다.
+    """
+    from langchain_core.language_models import FakeListChatModel
+    from langchain_core.output_parsers import JsonOutputParser
+    from langchain_core.runnables import RunnableMap, RunnablePassthrough
+
+    class _Fake(FakeListChatModel):
+        def with_structured_output(self, schema=None, *, include_raw=False, **kw):  # noqa: ANN001
+            parser = JsonOutputParser()
+            if not include_raw:
+                return self | parser
+            assign = RunnablePassthrough.assign(
+                parsed=itemgetter("raw") | parser, parsing_error=lambda _: None
+            )
+            none = RunnablePassthrough.assign(parsed=lambda _: None)
+            return RunnableMap(raw=self) | assign.with_fallbacks(
+                [none], exception_key="parsing_error"
+            )
+
+    return _Fake(responses=responses)
+
+
+CANNED_ANSWER = json.dumps(make_answer_payload(), ensure_ascii=False)
+
+
 @pytest.fixture
 def service(settings, fake_retriever):
     """답변 LLM·라우터 LLM 모두 가짜로 주입한 RagService."""
@@ -83,6 +115,6 @@ def service(settings, fake_retriever):
 
     return RagService(
         settings, fake_retriever,
-        llm=FakeListChatModel(responses=["보크는 투수의 반칙 투구입니다. 규칙 5.09 참조."]),
+        llm=fake_structured_model([CANNED_ANSWER]),
         router_llm=FakeListChatModel(responses=['{"kind":"off_topic"}']),
     )
