@@ -17,7 +17,7 @@ EXAMPLES = [
     "도루가 뭐야?", "5.09 알려줘", "피치클락 몇 초야?",
 ]
 STATUS_BADGE = {
-    "answered": ("규칙집 근거 {n}건", "green", ":material/verified:"),
+    "answered": ("근거 {n}건", "green", ":material/verified:"),
     "not_in_rulebook": ("자료에서 확인 불가", "gray", ":material/help:"),
     "out_of_scope": ("야구 외 질문", "gray", ":material/block:"),
     "phase2_pending": ("최신 정보 도구는 Phase 2", "orange", ":material/schedule:"),
@@ -183,6 +183,10 @@ if question:
                                       else "근거 수집 중…")
                     elif event == "sources":
                         status.update(label=f"근거 {len(data.get('sources', []))}건 확보 · 답변 생성 중…")
+                    elif event == "tool":
+                        # 스키마를 켜면 토큰 스트리밍이 없어 이게 유일한 진행 신호다.
+                        query = data.get("query", "")
+                        status.update(label=f"웹 검색 중… {query}".rstrip())
                     elif event == "token":
                         yield data.get("text", "")
                     elif event == "final":

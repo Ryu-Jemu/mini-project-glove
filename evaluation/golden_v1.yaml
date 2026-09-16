@@ -141,3 +141,20 @@ cases:
     expect_route: latest
     expect_status_in: [answered, not_in_rulebook, phase2_pending]
     expected_rule_refs: []
+  - id: 18
+    question: "박해민 야구선수는 어디 팀 소속이야?"
+    category: 인물
+    # 규칙집에 답이 없고 BM25 는 무관한 조항을 들고 온다. 도구를 부르지 않으면 거부로 끝난다.
+    expect_route: latest
+    expect_answer_kind: entity
+    expect_status_in: [answered]
+    expect_freshness_in: [web, model, live, snapshot]
+    expected_rule_refs: []
+  - id: 19
+    question: "LG Twins 박해민 선수의 생년월일을 알려줘."
+    category: 인물
+    expect_route: rule
+    expect_answer_kind: entity
+    expect_status_in: [answered]
+    expect_freshness_in: [web, model]
+    expected_rule_refs: []

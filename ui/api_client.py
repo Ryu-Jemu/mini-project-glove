@@ -75,7 +75,7 @@ def reset_session(session_id: str, base_url: str | None = None) -> None:
 def stream_answer(
     question: str, session_id: str | None = None, base_url: str | None = None
 ) -> Iterator[tuple[str, dict[str, Any]]]:
-    """(event, data) 튜플을 순서대로 낸다: route → status → sources → token* → final → done."""
+    """(event, data) 튜플을 순서대로 낸다: route → status → sources → tool* → token* → final → done."""
     base_url = base_url or _default_base()
     payload = {"question": question, "session_id": session_id}
     with httpx.Client(timeout=TIMEOUT) as client:
