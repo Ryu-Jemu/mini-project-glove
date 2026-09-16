@@ -163,3 +163,67 @@ def test_missing_env_file_is_not_an_error(monkeypatch, tmp_path) -> None:
     monkeypatch.delenv("APP_ACCESS_PIN", raising=False)
     monkeypatch.setattr(module, "ENV_PATH", tmp_path / "없는파일")
     assert module.configured_pin() is None
+
+
+# --- 배포 설정 진단 -----------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "dsn,loopback",
+    [
+        ("postgresql://baseball:baseball-local@127.0.0.1:55432/baseball", True),
+        ("postgresql://u:p@localhost:5432/db", True),
+        ("postgresql://u:p@0.0.0.0:5432/db", True),
+        ("postgresql://neondb_owner:x@ep-a-pooler.aws.neon.tech/neondb?sslmode=require", False),
+        ("", False),
+    ],
+)
+def test_loopback_dsn_detection(monkeypatch, dsn: str, loopback: bool) -> None:
+    import service
+
+    monkeypatch.setenv("PG_DSN", dsn)
+    assert service.dsn_is_loopback() is loopback
+
+
+def test_loopback_diagnosis_beats_generic_message(monkeypatch) -> None:
+    """.env.example 의 기본값을 배포 설정에 넣는 실수를 정확히 짚어야 한다."""
+    import service
+
+    monkeypatch.setenv("PG_DSN", "postgresql://baseball:baseball-local@127.0.0.1:55432/baseball")
+    hint = service.diagnose("OperationalError: connection refused")
+    assert "로컬 주소" in hint
+    assert ".env.example" in hint
+
+
+def test_diagnosis_never_leaks_the_dsn(monkeypatch) -> None:
+    import service
+
+    secret = "postgresql://someuser:SuperSecret123@db.example.com/x"
+    monkeypatch.setenv("PG_DSN", secret)
+    hint = service.diagnose(f"OperationalError: could not connect using {secret}")
+    assert "SuperSecret123" not in hint
+    assert "someuser" not in hint
+
+
+@pytest.mark.parametrize(
+    "message,needle",
+    [
+        ("could not translate host name \"ep-typo\"", "호스트"),
+        ("password authentication failed for user", "비밀번호"),
+        ("relation \"rule_chunks\" does not exist", "색인"),
+    ],
+)
+def test_specific_failures_get_specific_hints(monkeypatch, message: str, needle: str) -> None:
+    import service
+
+    monkeypatch.setenv("PG_DSN", "postgresql://u:p@db.example.com/x")
+    assert needle in service.diagnose(message)
+
+
+def test_env_example_default_is_loopback() -> None:
+    """기본값이 로컬인 것은 의도된 설계다. 바뀌면 경고 문구도 함께 손봐야 한다."""
+    from dotenv import dotenv_values
+
+    value = dotenv_values(ROOT / ".env.example").get("PG_DSN", "")
+    assert "127.0.0.1" in value
+    text = (ROOT / ".env.example").read_text(encoding="utf-8")
+    assert "배포할 때 이 값을 그대로 쓰면 동작하지 않는다" in text

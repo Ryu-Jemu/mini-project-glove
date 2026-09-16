@@ -73,14 +73,42 @@ _HINTS = (
 )
 
 
+LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1", "0.0.0.0")
+
+
+def _dsn_host() -> str:
+    """설정된 데이터베이스 호스트만 꺼낸다. 사용자·비밀번호는 건드리지 않는다."""
+    dsn = os.environ.get("PG_DSN", "")
+    if not dsn:
+        try:
+            from baseball.config import get_settings
+
+            dsn = get_settings().pg_dsn
+        except Exception:                      # noqa: BLE001
+            return ""
+    try:
+        from urllib.parse import urlsplit
+
+        return urlsplit(dsn).hostname or ""
+    except Exception:                          # noqa: BLE001
+        return ""
+
+
+def dsn_is_loopback() -> bool:
+    return _dsn_host() in LOOPBACK_HOSTS
+
+
 def diagnose(message: str) -> str:
     """원인을 한 줄로 바꾼다. 비밀값은 절대 담지 않는다."""
+    # 호스트가 루프백이면 오류 문구를 따질 것 없이 원인이 확정된다.
+    # .env.example 의 PG_DSN 을 그대로 배포 설정에 붙여 넣으면 여기에 걸린다.
+    if dsn_is_loopback():
+        return ("PG_DSN 이 로컬 주소를 가리킵니다. .env.example 의 기본값은 내 컴퓨터의 도커용입니다. "
+                "배포에서는 외부 데이터베이스 주소를 넣어야 합니다.")
     low = message.lower()
     for needle, hint in _HINTS:
         if needle in low:
             return hint
-    if "127.0.0.1" in message or "localhost" in message:
-        return "PG_DSN 이 설정되지 않아 로컬 주소로 연결을 시도했습니다. 배포 설정에 PG_DSN 을 넣으세요."
     return "설정을 확인하세요."
 
 
