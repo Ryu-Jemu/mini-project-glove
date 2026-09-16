@@ -15,7 +15,12 @@ from baseball.config import Settings
 from baseball.prompts import HUMAN_TEXT, SYSTEM_TEXT
 from helpers import make_doc
 
-ALLOWED_BIND_KEYS = {"response_format", "ls_structured_output_format", "max_tokens"}
+# 도구는 response_format 과 같은 요청 파라미터다. 메시지를 만들거나 바꾸지 않으므로
+# 프롬프트 조작이 아니다. 메시지 관련 키가 들어오면 여전히 실패해야 한다.
+ALLOWED_BIND_KEYS = {
+    "response_format", "ls_structured_output_format", "max_tokens",
+    "tools", "parallel_tool_calls", "tool_choice",
+}
 
 
 def _messages(schema_on: bool, fake_retriever: Any) -> list[Any]:

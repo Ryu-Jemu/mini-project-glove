@@ -85,6 +85,9 @@ class Settings(BaseSettings):
 
     # --- 최신정보 ---
     enable_web_search: Literal["auto", "on", "off"] = "auto"
+    # 답변 모델이 web_search 도구를 부를 수 있는 최대 횟수. 0 이면 도구를 붙이지 않는다.
+    # 라운드마다 LLM 호출 1회와 Tavily 최대 3시도가 붙는다. tunable
+    max_tool_rounds: int = 2
     tavily_include_domains: str = (
         "koreabaseball.com,sports.news.naver.com,sports.naver.com,yna.co.kr,lgtwins.com"
     )

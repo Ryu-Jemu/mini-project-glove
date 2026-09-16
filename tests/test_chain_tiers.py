@@ -2,11 +2,11 @@
 
   0단계 가진 데이터(KBO 실데이터·리그 규정 스냅샷)
   1단계 규칙집 PDF          ← 1차 근거
-  2단계 Tavily 웹 검색       ← 규칙집이 빈손일 때만
-  3단계 전부 빈손이면 거부
+  2단계 모델이 web_search 도구를 부른다 (tests/test_tool_loop.py)
+  3단계 도구도 지식도 없으면 거부
 
-예전에는 웹이 검색보다 먼저 돌았고, abstain 이 곧바로 거부였다. 그래서 규칙집에 답이
-있는 질문도 근거를 못 찾으면 LLM 을 부르지도 않고 거부 문장으로 끝났다.
+웹 검색은 시스템이 미리 하지 않는다. 시스템은 docs 가 비었는지만 알 뿐 그 docs 가 질문과
+맞는지는 모르기 때문이다. 그 판단은 모델이 한다.
 """
 from __future__ import annotations
 
@@ -74,15 +74,13 @@ def test_rulebook_hit_never_reaches_the_web(web) -> None:
     assert web.queries == []
 
 
-def test_web_runs_only_after_the_rulebook_comes_up_empty(web) -> None:
-    web.results = [_entry()]
+def test_system_never_prefetches_the_web(web) -> None:
+    """검색을 부를지는 모델이 정한다. 시스템이 미리 부르면 무관한 결과에 돈을 쓴다."""
     out = _service(_web_on(), abstain=True).answer("인필드 플라이가 뭐야?")
 
-    assert web.queries == ["인필드 플라이가 뭐야?"]
-    assert out.freshness == "web"
+    assert web.queries == []
     assert out.status == "answered"
     assert out.llm_called is True              # 예전에는 여기서 거부하고 끝났다
-    assert [s["kind"] for s in out.sources] == ["web"]
 
 
 def test_abstain_is_no_longer_an_immediate_refusal(web) -> None:
@@ -94,9 +92,19 @@ def test_abstain_is_no_longer_an_immediate_refusal(web) -> None:
 
 # --------------------------------------------------------------------------- 3단계 분기
 
-def test_rule_question_with_nothing_anywhere_refuses(web) -> None:
-    out = _service(_web_on(), abstain=True).answer("인필드 플라이가 뭐야?")
-    assert web.queries                          # 웹까지 가 보긴 했다
+def test_empty_rulebook_hands_the_model_the_tool(web) -> None:
+    """규칙집이 빈손이어도 도구가 있으면 거부하지 않고 모델에게 넘긴다."""
+    service = _service(_web_on(), abstain=True)
+    prepared = service.prepare("인필드 플라이가 뭐야?", model="gpt-4o-mini")
+
+    assert prepared.gate is None                # 공짜 거부로 끝내지 않는다
+    assert prepared.knowledge_only is True
+    assert service.answer_tools(), "웹이 켜져 있으면 도구가 붙어야 한다"
+
+
+def test_rule_question_refuses_only_when_there_is_no_way_out(web) -> None:
+    """도구도 없고 모델 지식도 꺼져 있으면 그때 거부한다."""
+    out = _service(_settings(enable_model_knowledge="off"), abstain=True).answer("보크가 뭐야?")
     assert out.answer == NOT_IN_CONTEXT_REFUSAL
     assert out.status == "not_in_rulebook"
     assert out.llm_called is False
@@ -192,7 +200,8 @@ def test_model_knowledge_can_be_switched_off(web) -> None:
     assert out.llm_called is False
 
 
-def test_web_is_preferred_over_model_knowledge(web) -> None:
-    web.results = [_entry()]
-    out = _service(_web_on(enable_model_knowledge="on"), abstain=True).answer("보크가 뭐야?")
-    assert out.freshness == "web"
+def test_tools_win_over_refusing_even_when_knowledge_is_off(web) -> None:
+    """모델 지식을 꺼도 도구가 있으면 답할 길이 있다. 공짜 거부로 끝내지 않는다."""
+    service = _service(_web_on(enable_model_knowledge="off"), abstain=True)
+    prepared = service.prepare("보크가 뭐야?", model="gpt-4o-mini")
+    assert prepared.gate is None and prepared.knowledge_only is True

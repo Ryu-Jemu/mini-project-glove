@@ -7,6 +7,7 @@ from typing import Any
 
 from langchain_core.tools import tool
 
+from baseball import latest_info
 from baseball.config import get_settings
 from baseball.context import format_context
 from baseball.latest_info import match_snapshot
@@ -106,7 +107,38 @@ def kbo_data_lookup(query: str) -> tuple[str, dict[str, Any]]:
     return text, {"sources": sources, "retrieved_ids": [e.label for e in entries]}
 
 
-TOOLS = [search_baseball_rules, league_regulation_lookup, kbo_data_lookup]
+@tool(response_format="content_and_artifact")
+def web_search(query: str) -> tuple[str, dict[str, Any]]:
+    """웹에서 야구 관련 최신 사실을 검색한다.
+
+    사용 시점: 선수·감독·구단·인물의 소속·생년월일·경력, 최근 경기·이적·부상·수상,
+        올해의 규정 변경처럼 규칙집에 없거나 시간이 지나면 바뀌는 사실을 물을 때.
+        제공된 자료에 규칙 조항만 있고 질문과 맞지 않을 때도 여기로 확인한다.
+    사용하지 말 것: 규칙 조항이나 용어의 뜻 자체(보크, 인필드 플라이, 5.09 등).
+        그런 질문은 이미 제공된 자료가 답이다.
+    한 번에 한 가지 사실만 짧은 한국어 검색어로 찾는다(예: "박해민 소속 구단").
+
+    Args:
+        query: 검색어. 질문을 그대로 넣지 말고 찾을 사실을 명사구로 쓴다.
+    """
+    settings = get_settings()
+    entries = latest_info.web_search(query, settings)
+    if not entries:
+        return ("검색 결과 없음: 관련된 웹 문서를 찾지 못했습니다.", {"sources": [], "entries": []})
+    text = format_context([], entries, latest_max_tokens=settings.latest_context_max_tokens)
+    # _latest_sources 와 같은 모양이어야 화면·API 가 그대로 받는다. chain 을 import 하면 순환이다.
+    sources = [
+        {"kind": e.kind, "label": e.label, "url": e.source_url,
+         "as_of": e.as_of, "confidence": e.confidence}
+        for e in entries
+    ]
+    header = f"[웹 검색 결과 {len(entries)}건 | 검색어: {query}]"
+    return (f"{header}\n\n{text}", {"sources": sources, "entries": list(entries)})
+
+
+# 답변 모델에 붙이는 도구. 규칙집·KBO 조회는 이미 턴 앞단에서 끝났으므로 웹만 준다.
+ANSWER_TOOLS = [web_search]
+TOOLS = [search_baseball_rules, league_regulation_lookup, kbo_data_lookup, web_search]
 BY_NAME = {t.name: t for t in TOOLS}
 
 

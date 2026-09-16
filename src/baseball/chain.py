@@ -8,7 +8,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Iterable, Iterator, Sequence
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from pydantic import ValidationError
 
 from baseball import answer_lint, answer_render
@@ -71,19 +71,37 @@ def build_llm(
     return ChatOpenAI(**kw).with_config(tags=["final_answer"], run_name="final_answer")
 
 
-def build_structured_llm(model: str, settings: Settings) -> Any:
+def _structured_kwargs(tools: Sequence[Any], tool_choice: str | None) -> dict[str, Any]:
+    """도구를 요청 파라미터로 넘길 kwargs. 메시지는 건드리지 않는다."""
+    if not tools:
+        return {}
+    extra: dict[str, Any] = {"tools": list(tools), "parallel_tool_calls": False}
+    if tool_choice:
+        extra["tool_choice"] = tool_choice
+    return extra
+
+
+def build_structured_llm(
+    model: str, settings: Settings, *, tools: Sequence[Any] = (), tool_choice: str | None = None
+) -> Any:
     """답변 구조를 강제하는 LLM. 프롬프트가 아니라 response_format 으로 건다.
 
     streaming=False 가 중요하다. 생성자에 streaming=True 를 주면 model_fields_set 에
     남아 _should_stream 이 참이 되고 .invoke() 조차 스트림 경로로 간다.
     include_raw=True 도 중요하다. False 면 llm | parser 가 되어 AIMessage 가 사라지고
     _usage_of 가 붙을 곳이 없어 토큰·비용이 조용히 0 이 된다.
+
+    도구는 반드시 with_structured_output 의 tools 인자로 넘긴다.
+    bind_tools(...).with_structured_output(...) 로 엮으면 도구가 조용히 사라진다.
+    바인딩이 raw 모델로 프록시되어 내부의 self.bind 가 빈 상태에서 다시 시작하기 때문이다.
+    parallel_tool_calls 를 끄는 이유는 병렬 호출이 붙으면 구조화 출력이 보장되지 않아서다.
     """
     llm = build_llm(
         model, settings, streaming=False, max_tokens=settings.answer_max_output_tokens
     )
     return llm.with_structured_output(
-        RESPONSE_FORMAT, method="json_schema", strict=True, include_raw=True
+        RESPONSE_FORMAT, method="json_schema", strict=True, include_raw=True,
+        **_structured_kwargs(tools, tool_choice),
     )
 
 
@@ -138,6 +156,8 @@ class _Generated:
     blocks: list[str] = field(default_factory=list)
     kind: str | None = None
     issues: list[str] = field(default_factory=list)
+    sources: list[dict[str, Any]] = field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -223,12 +243,45 @@ class RagService:
             return self._llm
         return build_llm(model, self.settings, max_tokens=max_tokens)
 
-    def structured_llm(self, model: str) -> Any:
+    def structured_llm(
+        self, model: str, *, tools: Sequence[Any] = (), tool_choice: str | None = None
+    ) -> Any:
         if self._llm is not None:                       # 테스트 주입 seam
             return self._llm.with_structured_output(
-                RESPONSE_FORMAT, method="json_schema", strict=True, include_raw=True
+                RESPONSE_FORMAT, method="json_schema", strict=True, include_raw=True,
+                **_structured_kwargs(tools, tool_choice),
             )
-        return build_structured_llm(model, self.settings)
+        return build_structured_llm(model, self.settings, tools=tools, tool_choice=tool_choice)
+
+    def answer_tools(self) -> list[Any]:
+        """답변 모델에 붙일 도구. 웹이 꺼져 있거나 라운드가 0 이면 붙이지 않는다."""
+        if not self.settings.web_search_enabled or self.settings.max_tool_rounds <= 0:
+            return []
+        from baseball.tools import ANSWER_TOOLS
+
+        return list(ANSWER_TOOLS)
+
+    def _run_tool(self, call: dict[str, Any], tools: Sequence[Any]) -> tuple[Any, dict[str, Any]]:
+        """도구 하나를 돌린다. 어떤 실패도 사용자 경로로 올리지 않는다."""
+        by_name = {t.name: t for t in tools}            # 바인딩한 것만. 전역 BY_NAME 이 아니다
+        name = call.get("name") or ""
+        tool = by_name.get(name)
+        if tool is None:
+            log.warning("모르는 도구 호출: %s", name)
+            return ToolMessage(
+                content=f"'{name}' 도구는 없습니다. 도구 없이 답하세요.",
+                tool_call_id=call["id"], name=name or "unknown", status="error",
+            ), {}
+        try:
+            msg = tool.invoke(call)                     # ToolMessage(tool_call_id·artifact 포함)를 만들어 준다
+        except Exception as exc:                        # noqa: BLE001  web_search 는 예외를 내지 않지만 방어한다
+            log.warning("도구 %s 실패: %s", name, exc)
+            return ToolMessage(
+                content="검색에 실패했습니다. 결과 없이 답하세요.",
+                tool_call_id=call["id"], name=name, status="error",
+            ), {}
+        artifact = msg.artifact if isinstance(getattr(msg, "artifact", None), dict) else {}
+        return msg, artifact
 
     # --- 생성(동기/비동기 공용 조각) ----------------------------------------
     def _render_messages(
@@ -293,23 +346,162 @@ class RagService:
             if chunk_usage.get("output_tokens") or chunk_usage.get("input_tokens"):
                 usage.update(chunk_usage)
 
+    def _fallback_llm(self, model: str, tools: Sequence[Any], used_tools: bool) -> Any:
+        """구조화 파싱이 깨졌을 때 쓰는 평문 재호출.
+
+        도구 메시지가 섞인 히스토리를 tools 없이 되보내면 OpenAI 가 거부할 수 있다.
+        같은 도구를 tool_choice="none" 으로 묶어 형태를 맞추되 호출은 막는다.
+        """
+        llm = self.llm(model, max_tokens=self.settings.answer_max_output_tokens)
+        if used_tools and tools:
+            return llm.bind_tools(list(tools), tool_choice="none")
+        return llm
+
+    def _finalize_gen(
+        self, gen: _Generated, spent: dict[str, Any],
+        sources: list[dict[str, Any]], calls: list[dict[str, Any]],
+    ) -> _Generated:
+        gen.usage = _merge_usage(spent, gen.usage)
+        gen.sources = sources
+        gen.tool_calls = calls
+        return gen
+
+    def _structured_steps(
+        self, messages: list[BaseMessage], prepared: _Prepared, model: str
+    ) -> Iterator[tuple[str, Any]]:
+        """도구 루프. ("tool", 이벤트) 를 0회 이상 낸 뒤 ("gen", _Generated) 를 한 번 낸다.
+
+        제너레이터인 이유는 스트림 경로가 검색 진행을 실시간으로 알리기 위해서다.
+        스키마를 켜면 토큰 스트리밍이 없어 이 이벤트가 유일한 진행 신호이고,
+        도구 한 번이 수 초 걸리므로 끝난 뒤에 알리면 거짓 표시가 된다.
+        """
+        tools = self.answer_tools()
+        spent = {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
+        sources: list[dict[str, Any]] = []
+        calls: list[dict[str, Any]] = []
+        max_rounds = self.settings.max_tool_rounds if tools else 0
+
+        for round_no in range(max_rounds + 1):
+            last = round_no == max_rounds
+            # 마지막 라운드는 호출을 막아 미해결 도구 호출로 턴이 끝나지 않게 한다.
+            out = self.structured_llm(
+                model, tools=tools, tool_choice="none" if (tools and last) else None
+            ).invoke(messages)
+
+            raw = out.get("raw") if isinstance(out, dict) else None
+            tool_calls = list(getattr(raw, "tool_calls", None) or [])
+            parsed = out.get("parsed") if isinstance(out, dict) else None
+
+            if parsed is None and tool_calls and not last:
+                spent = _merge_usage(spent, _usage_of(raw))
+                raw, tool_calls = _with_call_ids(raw, tool_calls)
+                messages.append(raw)          # 턴마다 새로 만든 리스트다. 고정 프롬프트는 건드리지 않는다
+                for call in tool_calls:
+                    msg, artifact = self._run_tool(call, tools)
+                    messages.append(msg)
+                    found = list(artifact.get("sources", []))
+                    sources += found
+                    event = {
+                        "name": call.get("name", ""),
+                        "query": str(call.get("args", {}).get("query", "")),
+                        "results": len(found),
+                    }
+                    calls.append(event)
+                    yield ("tool", event)
+                continue
+
+            gen = self._structured_result(out, prepared)
+            if gen is None:
+                gen = self._plain_result(
+                    self._fallback_llm(model, tools, bool(calls)).invoke(messages),
+                    issues=[SCHEMA_FALLBACK],
+                )
+            yield ("gen", self._finalize_gen(gen, spent, sources, calls))
+            return
+
+    async def _astructured_steps(
+        self, messages: list[BaseMessage], prepared: _Prepared, model: str
+    ) -> AsyncIterator[tuple[str, Any]]:
+        """_structured_steps 의 비동기 쌍둥이."""
+        tools = self.answer_tools()
+        spent = {"input_tokens": 0, "output_tokens": 0, "cache_read": 0}
+        sources: list[dict[str, Any]] = []
+        calls: list[dict[str, Any]] = []
+        max_rounds = self.settings.max_tool_rounds if tools else 0
+
+        for round_no in range(max_rounds + 1):
+            last = round_no == max_rounds
+            out = await self.structured_llm(
+                model, tools=tools, tool_choice="none" if (tools and last) else None
+            ).ainvoke(messages)
+
+            raw = out.get("raw") if isinstance(out, dict) else None
+            tool_calls = list(getattr(raw, "tool_calls", None) or [])
+            parsed = out.get("parsed") if isinstance(out, dict) else None
+
+            if parsed is None and tool_calls and not last:
+                spent = _merge_usage(spent, _usage_of(raw))
+                raw, tool_calls = _with_call_ids(raw, tool_calls)
+                messages.append(raw)
+                for call in tool_calls:
+                    msg, artifact = await self._arun_tool(call, tools)
+                    messages.append(msg)
+                    found = list(artifact.get("sources", []))
+                    sources += found
+                    event = {
+                        "name": call.get("name", ""),
+                        "query": str(call.get("args", {}).get("query", "")),
+                        "results": len(found),
+                    }
+                    calls.append(event)
+                    yield ("tool", event)
+                continue
+
+            gen = self._structured_result(out, prepared)
+            if gen is None:
+                gen = self._plain_result(
+                    await self._fallback_llm(model, tools, bool(calls)).ainvoke(messages),
+                    issues=[SCHEMA_FALLBACK],
+                )
+            yield ("gen", self._finalize_gen(gen, spent, sources, calls))
+            return
+
+    async def _arun_tool(
+        self, call: dict[str, Any], tools: Sequence[Any]
+    ) -> tuple[Any, dict[str, Any]]:
+        by_name = {t.name: t for t in tools}
+        name = call.get("name") or ""
+        tool = by_name.get(name)
+        if tool is None:
+            log.warning("모르는 도구 호출: %s", name)
+            return ToolMessage(
+                content=f"'{name}' 도구는 없습니다. 도구 없이 답하세요.",
+                tool_call_id=call["id"], name=name or "unknown", status="error",
+            ), {}
+        try:
+            # StructuredTool.ainvoke 가 동기 함수를 스레드로 보내므로 루프를 막지 않는다.
+            msg = await tool.ainvoke(call)
+        except Exception as exc:                        # noqa: BLE001
+            log.warning("도구 %s 실패: %s", name, exc)
+            return ToolMessage(
+                content="검색에 실패했습니다. 결과 없이 답하세요.",
+                tool_call_id=call["id"], name=name, status="error",
+            ), {}
+        artifact = msg.artifact if isinstance(getattr(msg, "artifact", None), dict) else {}
+        return msg, artifact
+
     def _generate(
         self, prepared: _Prepared, *, question: str, session_id: str | None, model: str
     ) -> _Generated:
         messages = self._render_messages(prepared, question=question, session_id=session_id)
         if not self.settings.answer_schema_enabled:
             return self._plain_result(self.llm(model).invoke(messages), issues=[])
-        gen = self._structured_result(self.structured_llm(model).invoke(messages), prepared)
-        if gen is not None:
-            return gen
-        # 파싱 실패의 대표 원인은 출력 절단이고, 그때 raw.content 는 반쪽 JSON 이라 쓸 수 없다.
-        # response_format 없이 같은 메시지로 딱 한 번 다시 부른다(턴당 최대 1회).
-        # 절단 때문에 생긴 재호출이므로 같은 상한을 그대로 준다. 상한 없이 부르면
-        # 실패한 턴만 출력 비용이 무제한으로 열린다.
-        return self._plain_result(
-            self.llm(model, max_tokens=self.settings.answer_max_output_tokens).invoke(messages),
-            issues=[SCHEMA_FALLBACK],
-        )
+        gen: _Generated | None = None
+        for kind, payload in self._structured_steps(messages, prepared, model):
+            if kind == "gen":
+                gen = payload
+        assert gen is not None                          # 루프는 반드시 ("gen", …) 으로 끝난다
+        return gen
 
     async def _agenerate(
         self, prepared: _Prepared, *, question: str, session_id: str | None, model: str
@@ -318,15 +510,12 @@ class RagService:
         messages = self._render_messages(prepared, question=question, session_id=session_id)
         if not self.settings.answer_schema_enabled:
             return self._plain_result(await self.llm(model).ainvoke(messages), issues=[])
-        out = await self.structured_llm(model).ainvoke(messages)
-        gen = self._structured_result(out, prepared)
-        if gen is not None:
-            return gen
-        return self._plain_result(
-            await self.llm(model, max_tokens=self.settings.answer_max_output_tokens)
-            .ainvoke(messages),
-            issues=[SCHEMA_FALLBACK],
-        )
+        gen: _Generated | None = None
+        async for kind, payload in self._astructured_steps(messages, prepared, model):
+            if kind == "gen":
+                gen = payload
+        assert gen is not None
+        return gen
 
     # --- 턴 준비(동기/스트림 공용) -----------------------------------------
     def prepare(self, question: str, *, model: str) -> _Prepared:
@@ -376,25 +565,24 @@ class RagService:
             # 근거가 약하다는 뜻이지 거부하라는 뜻이 아니다. 아래 단계가 받는다.
             docs = []
 
-        # 2단계 — 웹 검색. 규칙집이 빈손일 때만 나간다.
-        if not docs and not kbo_entries and not latest and self.settings.web_search_enabled:
-            web = latest_info.web_search(question, self.settings, client=self._web_client)
-            if web:
-                latest, freshness = web, "web"
+        # 웹 검색은 여기서 하지 않는다. 시스템은 docs 가 비었는지만 알 뿐, 그 docs 가 질문과
+        # 맞는지는 모르기 때문이다. BM25 는 "선수"·"야구" 같은 단어로 늘 무언가를 찾아내므로
+        # "비어있지 않음"이 "쓸모있음"을 뜻하지 않는다. 그 판단은 모델이 도구로 한다.
 
-        # 순위·일정 질문에 규칙집 조항이 섞이면 모델이 답을 거부한다. 웹 단계 뒤에 판단해야
-        # 2단계가 채운 자료까지 포함해 같은 규칙이 걸린다.
+        # 순위·일정 질문에 규칙집 조항이 섞이면 모델이 답을 거부한다.
         if (latest or kbo_entries) and r.kind == "latest" and not r.rule_hit:
             docs = []
 
-        # 3단계 — 어디에서도 근거를 못 찾았다.
+        # 3단계 — 가진 자료로는 근거를 못 찾았다. 모델에게 도구나 지식으로 넘긴다.
         knowledge_only = False
         if not docs and not latest and not kbo_entries:
             needs_live = bool(
                 latest_info.LIVE_WEB_RE.search(unicodedata.normalize("NFKC", question))
             )
-            # 실시간 값(순위·기록·일정)은 모델 지식으로 답하면 안 된다. 틀린 숫자가 나온다.
-            if self.settings.model_knowledge_enabled and not needs_live:
+            can_tool = bool(self.answer_tools())
+            # 실시간 값(순위·기록·일정)은 도구로 확인하지 않는 한 모델 지식으로 답하면 안 된다.
+            can_know = self.settings.model_knowledge_enabled and not needs_live
+            if can_tool or can_know:
                 knowledge_only, freshness = True, "model"
             elif r.kind in {"latest", "mixed"} and needs_live:
                 # 실시간 정보가 필요한데 웹 경로가 닫혀 있거나 빈손이다.
@@ -434,22 +622,32 @@ class RagService:
         self, prepared: _Prepared, *, question: str, answer_text: str, usage: dict[str, Any],
         model: str, started: float, session_id: str | None,
         answer_kind: str | None = None, issues: list[str] | None = None,
+        extra_sources: Sequence[dict[str, Any]] = (),
     ) -> TurnResult:
         status = detect_status(answer_text, tail_max_chars=self.settings.refusal_tail_max_chars)
         found, dropped = cite.extract(answer_text, prepared.docs)
         usage = dict(usage)
         usage["cost_usd"] = round(_cost(model, usage), 6)
+
+        # 도구가 가져온 근거는 prepared 에 없다. 여기서 합치지 않으면 화면에도 API 에도 안 보인다.
+        tool_sources = list(extra_sources)
+        sources = (_rule_sources(prepared.docs) + _latest_sources(prepared.latest)
+                   + _kbo_sources(prepared.kbo) + tool_sources)
+        if prepared.knowledge_only and not tool_sources:
+            sources += _model_source()                  # 정말 아무것도 못 찾았을 때만
+        # 실데이터(live·snapshot)가 웹 스니펫보다 믿을 만하므로 덮어쓰지 않는다.
+        freshness = ("web" if tool_sources and prepared.freshness in {"static", "model"}
+                     else prepared.freshness)
         result = TurnResult(
             answer=answer_text,
             status=status,
             partial_refusal=has_partial_refusal(answer_text),
-            freshness=prepared.freshness,
+            freshness=freshness,
             needs_web=False,
             route=prepared.route.to_dict(),
             citations=[c.to_dict() for c in found],
             dropped_citations=dropped,
-            sources=_rule_sources(prepared.docs) + _latest_sources(prepared.latest)
-                    + _kbo_sources(prepared.kbo) + (_model_source() if prepared.knowledge_only else []),
+            sources=sources,
             usage=usage,
             latency_ms=int((time.time() - started) * 1000),
             llm_called=True,
@@ -486,7 +684,7 @@ class RagService:
         return self._finish(
             prepared, question=question, answer_text=gen.text, usage=gen.usage,
             model=model, started=started, session_id=session_id,
-            answer_kind=gen.kind, issues=gen.issues,
+            answer_kind=gen.kind, issues=gen.issues, extra_sources=gen.sources,
         )
 
     # --- 스트리밍 -----------------------------------------------------------
@@ -515,9 +713,14 @@ class RagService:
 
         yield {"event": "status", "data": {"status": "generating", "llm_called": True}}
         if self.settings.answer_schema_enabled:
-            gen = await self._agenerate(
-                prepared, question=question, session_id=session_id, model=model
-            )
+            messages = self._render_messages(prepared, question=question, session_id=session_id)
+            gen = None
+            async for kind, payload in self._astructured_steps(messages, prepared, model):
+                if kind == "tool":
+                    yield {"event": "tool", "data": payload}
+                else:
+                    gen = payload
+            assert gen is not None
             for piece in _token_pieces(gen):
                 yield {"event": "token", "data": {"text": piece}}
         else:
@@ -530,7 +733,7 @@ class RagService:
         result = self._finish(
             prepared, question=question, answer_text=gen.text, usage=gen.usage,
             model=model, started=started, session_id=session_id,
-            answer_kind=gen.kind, issues=gen.issues,
+            answer_kind=gen.kind, issues=gen.issues, extra_sources=gen.sources,
         )
         yield {"event": "final", "data": _final_payload(result)}
         yield {"event": "done", "data": {}}
@@ -566,7 +769,14 @@ class RagService:
 
         yield {"event": "status", "data": {"status": "generating", "llm_called": True}}
         if self.settings.answer_schema_enabled:
-            gen = self._generate(prepared, question=question, session_id=session_id, model=model)
+            messages = self._render_messages(prepared, question=question, session_id=session_id)
+            gen = None
+            for kind, payload in self._structured_steps(messages, prepared, model):
+                if kind == "tool":
+                    yield {"event": "tool", "data": payload}
+                else:
+                    gen = payload
+            assert gen is not None
             for piece in _token_pieces(gen):
                 yield {"event": "token", "data": {"text": piece}}
         else:
@@ -578,7 +788,7 @@ class RagService:
         result = self._finish(
             prepared, question=question, answer_text=gen.text, usage=gen.usage,
             model=model, started=started, session_id=session_id,
-            answer_kind=gen.kind, issues=gen.issues,
+            answer_kind=gen.kind, issues=gen.issues, extra_sources=gen.sources,
         )
         yield {"event": "final", "data": _final_payload(result)}
         yield {"event": "done", "data": {}}
@@ -608,6 +818,32 @@ def _token_pieces(gen: _Generated) -> list[str]:
         return [gen.text] if gen.text else []
     last = len(gen.blocks) - 1
     return [b if i == last else b + "\n\n" for i, b in enumerate(gen.blocks)]
+
+
+def _with_call_ids(raw: Any, tool_calls: list[dict[str, Any]]) -> tuple[Any, list[dict[str, Any]]]:
+    """id 가 없는 도구 호출에 번호를 붙인다.
+
+    id 가 None 이면 BaseTool.invoke 가 ToolMessage 대신 맨 문자열을 돌려주고, OpenAI 는
+    짝이 없는 tool_call_id 를 거부한다. 어시스턴트 메시지와 도구 응답의 id 를 함께 맞춘다.
+    """
+    if all(call.get("id") for call in tool_calls):
+        return raw, tool_calls
+    fixed = [
+        {**call, "id": call.get("id") or f"call_{i}"} for i, call in enumerate(tool_calls)
+    ]
+    try:
+        raw = raw.model_copy(update={"tool_calls": fixed})
+    except Exception:                                   # noqa: BLE001  가짜 모델 등
+        pass
+    return raw, fixed
+
+
+def _merge_usage(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
+    """루프는 LLM 을 두세 번 부른다. 덮어쓰면 마지막 호출분만 청구된다."""
+    return {
+        key: int(a.get(key, 0) or 0) + int(b.get(key, 0) or 0)
+        for key in ("input_tokens", "output_tokens", "cache_read")
+    }
 
 
 def _usage_of(message: Any) -> dict[str, Any]:

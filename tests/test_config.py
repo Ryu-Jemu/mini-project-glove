@@ -25,6 +25,7 @@ def test_env_var_names_match_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.abstain_on_dense_failure is True
     assert settings.abstain_bm25_reference == "sentence"
     assert settings.context_min_docs == 5
+    assert settings.max_tool_rounds == 1
 
 
 def test_secrets_are_masked(settings) -> None:
