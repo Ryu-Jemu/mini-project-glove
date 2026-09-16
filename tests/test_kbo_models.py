@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import copy
 import json
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import pytest
@@ -149,3 +149,66 @@ def test_schedule_rejects_count_mismatch() -> None:
             games=[Game.model_validate(g) for g in r["games"][:10]],
             as_of=date(2026, 9, 15), total=r["gameTotalCount"],
         )
+
+
+# --------------------------------------------------------------------------- 시각 단위 선택자
+
+def _g(day: int, hour: int, status: str = "BEFORE", *, away: str = "OB", home: str = "LG",
+       cancel: bool = False) -> Game:
+    return Game(
+        game_id=f"2026{9:02d}{day:02d}{away}{home}00000",
+        game_date=date(2026, 9, day),
+        game_date_time=datetime(2026, 9, day, hour, 30),
+        round_code="kbo_r", stadium="잠실",
+        home_code=home, away_code=away, status_code=status, cancel=cancel,
+    )
+
+
+def _snap(games: list[Game]) -> ScheduleSnapshot:
+    return ScheduleSnapshot(games=games, as_of=date(2026, 9, 16))
+
+
+def test_upcoming_is_time_based_not_date_based() -> None:
+    """remaining 은 날짜 단위라 세 시간 전에 시작한 오늘 경기도 '남은 경기' 다.
+
+    upcoming 은 그 경기를 뺀다. "가장 가까운 경기" 에는 이 구분이 필요하다.
+    """
+    started = _g(16, 14)                       # 오늘 14:30 — 이미 시작
+    later = _g(16, 18)                         # 오늘 18:30 — 아직
+    snap = _snap([started, later])
+    now = datetime(2026, 9, 16, 17, 0)         # naive KST
+
+    assert snap.remaining(date(2026, 9, 16)) == [started, later]   # 둘 다 '남은 경기'
+    assert snap.upcoming(now) == [later]                            # 시각으로 보면 하나뿐
+
+
+def test_upcoming_is_sorted_by_start_time() -> None:
+    snap = _snap([_g(18, 18), _g(16, 18), _g(17, 14)])
+    out = snap.upcoming(datetime(2026, 9, 16, 9, 0))
+    assert [g.game_date for g in out] == [date(2026, 9, 16), date(2026, 9, 17), date(2026, 9, 18)]
+
+
+def test_upcoming_skips_cancelled_games() -> None:
+    snap = _snap([_g(17, 18, cancel=True), _g(18, 18)])
+    assert [g.game_date for g in snap.upcoming(datetime(2026, 9, 16, 9, 0))] == [date(2026, 9, 18)]
+
+
+def test_last_finished_picks_the_most_recent_played_game() -> None:
+    """하이라이트가 가리킬 경기. 조회 창에 과거가 들어와야 비로소 의미가 있다."""
+    snap = _snap([_g(12, 18, "RESULT"), _g(15, 18, "RESULT"), _g(18, 18, "BEFORE")])
+    got = snap.last_finished(datetime(2026, 9, 16, 9, 0))
+    assert got is not None and got.game_date == date(2026, 9, 15)
+
+
+def test_last_finished_is_none_without_past_games() -> None:
+    """조회 창이 start=today 면 이 경로가 항상 None 이라 하이라이트가 불가능하다."""
+    assert _snap([_g(18, 18)]).last_finished(datetime(2026, 9, 16, 9, 0)) is None
+
+
+def test_upcoming_rejects_aware_datetime() -> None:
+    """game_date_time 이 naive KST 라 aware 를 넣으면 TypeError 가 난다. 계약을 고정한다."""
+    from datetime import timezone
+
+    snap = _snap([_g(18, 18)])
+    with pytest.raises(TypeError):
+        snap.upcoming(datetime(2026, 9, 16, 9, 0, tzinfo=timezone.utc))

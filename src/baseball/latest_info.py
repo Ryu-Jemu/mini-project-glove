@@ -14,7 +14,7 @@ from typing import Any, Literal, Sequence
 import httpx
 import yaml
 
-from baseball import db
+from baseball import clock, db
 from baseball.config import Settings, get_settings
 from baseball.context import LatestEntry
 
@@ -235,7 +235,7 @@ def web_search(
             log.warning("Tavily 검색 실패: %s", exc)
             return []
 
-    today = date.today().isoformat()
+    today = clock.today_kst().isoformat()
     out: list[LatestEntry] = []
     for r in results[:MAX_WEB_RESULTS]:
         content = (r.get("content") or "").strip()

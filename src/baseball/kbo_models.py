@@ -193,5 +193,30 @@ class ScheduleSnapshot(BaseModel):
             if g.is_regular and g.status_code == "BEFORE" and not g.cancel and g.game_date >= today
         ]
 
+    def upcoming(self, now: datetime) -> list["Game"]:
+        """아직 시작하지 않은 경기를 이른 순으로. remaining 과 달리 시각 단위다.
+
+        remaining 은 날짜 단위(game_date >= today)라 세 시간 전에 시작한 오늘 경기도
+        '남은 경기' 로 친다. "가장 가까운 경기" 에는 그 구분이 필요하다.
+
+        now 는 반드시 naive KST 여야 한다(clock.now_kst_naive()). game_date_time 이
+        네이버가 준 naive KST 벽시계라, aware 를 넣으면 TypeError 가 난다.
+        """
+        return sorted(
+            (g for g in self.games
+             if g.is_regular and not g.cancel and g.status_code == "BEFORE"
+             and g.game_date_time >= now),
+            key=lambda g: g.game_date_time,
+        )
+
+    def last_finished(self, now: datetime) -> "Game | None":
+        """이미 끝난 경기 중 가장 최근. 하이라이트가 가리킬 경기다."""
+        done = [
+            g for g in self.games
+            if g.is_regular and not g.cancel and g.game_date_time <= now
+            and g.status_code in {"RESULT", "STARTED"}
+        ]
+        return max(done, key=lambda g: g.game_date_time) if done else None
+
     def for_team(self, code: str) -> list["Game"]:
         return [g for g in self.games if code in (g.home_code, g.away_code)]

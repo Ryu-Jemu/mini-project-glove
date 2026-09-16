@@ -102,13 +102,11 @@ def _standing_for(code: str) -> dict[str, Any] | None:
 
 
 def _fetch_standings() -> Any:
-    from datetime import date
-
-    from baseball import kbo, kbo_naver
+    from baseball import clock, kbo, kbo_naver
     from baseball.config import get_settings
 
     settings = get_settings()
-    today = date.today()
+    today = clock.today_kst()
     return kbo_naver.fetch_standings(kbo.season_year(settings, today), today=today,
                                      timeout=settings.kbo_http_timeout_seconds)
 

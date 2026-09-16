@@ -242,13 +242,17 @@ def test_published_date_is_normalised(raw: Any, expected: str | None) -> None:
 
 
 def test_missing_published_date_falls_back_to_today() -> None:
-    from datetime import date
+    """발행일이 없으면 오늘로 채운다. '오늘' 의 기준은 서버 시간대가 아니라 KST 다.
+
+    date.today() 로 단언하면 UTC 서버에서 매일 00:00~09:00 KST 구간에만 깨진다.
+    """
+    from baseball import clock
 
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"results": [_result()]})
 
     out = latest_info.web_search("인필드 플라이", _settings(), client=_client(handler))
-    assert out[0].as_of == date.today().isoformat()
+    assert out[0].as_of == clock.today_kst().isoformat()
 
 
 def test_empty_results_are_not_cached(monkeypatch: pytest.MonkeyPatch) -> None:

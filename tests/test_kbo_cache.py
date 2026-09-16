@@ -151,3 +151,46 @@ def test_entries_capped(monkeypatch) -> None:
                               _Route(("standings", "schedule", "team_info"), ("LG",)),
                               settings=_settings(), today=TODAY)
     assert len(entries) <= kbo.MAX_ENTRIES
+
+
+# --------------------------------------------------------------------------- 조회 창
+
+def test_schedule_window_looks_back_for_past_games(monkeypatch) -> None:
+    """하이라이트는 지난 경기다. start=today 면 과거 경기가 스냅샷에 아예 없다."""
+    _no_db(monkeypatch)
+    seen: dict[str, object] = {}
+
+    def spy(**kw):
+        seen.update(kw)
+        return _schedule()
+
+    monkeypatch.setattr("baseball.kbo_naver.fetch_schedule", spy)
+    kbo.entries_for("LG 남은 경기", _Route(("schedule",), ("LG",)),
+                    settings=_settings(), today=TODAY)
+
+    assert seen["start"] == date(2026, 9, 2)        # TODAY - 14일
+    assert seen["today"] == TODAY                    # 기준일은 그대로 오늘이다
+
+
+def test_schedule_lookback_is_configurable(monkeypatch) -> None:
+    _no_db(monkeypatch)
+    seen: dict[str, object] = {}
+
+    def spy(**kw):
+        seen.update(kw)
+        return _schedule()
+
+    monkeypatch.setattr("baseball.kbo_naver.fetch_schedule", spy)
+    kbo.entries_for("LG 남은 경기", _Route(("schedule",), ("LG",)),
+                    settings=_settings(kbo_schedule_lookback_days=3), today=TODAY)
+
+    assert seen["start"] == date(2026, 9, 13)
+
+
+def test_schedule_cache_key_does_not_encode_the_window(monkeypatch) -> None:
+    """창을 호출부마다 다르게 주면 안 되는 이유를 고정한다.
+
+    _cached 의 키는 kind 문자열뿐이라, 창이 다른 두 조회는 같은 스냅샷 자리를
+    서로 덮어쓴다. 그래서 창은 전역 설정 하나여야 한다.
+    """
+    assert kbo.SCHEDULE_KIND == "kbo:schedule"       # 창이 키에 들어가지 않는다

@@ -20,6 +20,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterator
 
+from baseball import clock
+
 log = logging.getLogger(__name__)
 
 DATA_PATH = Path(__file__).resolve().parents[2] / "data" / "kbo_players.jsonl"
@@ -164,7 +166,7 @@ def write_jsonl(rows: list[dict[str, Any]], *, year: int, path: Path = DATA_PATH
                 captured: date | None = None) -> dict[str, Any]:
     """첫 줄은 메타(언제·어디서 받았는지), 그다음부터 선수 한 명씩."""
     rows = dedupe(rows)
-    captured = captured or date.today()
+    captured = captured or clock.today_kst()
     meta = {
         "_meta": True,
         "season": year,
@@ -228,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m baseball.kbo_players")
     ap.add_argument("command", choices=["build", "stats"],
                     help="build 는 상류에서 받아 파일을 새로 쓴다. stats 는 저장된 파일을 요약한다")
-    ap.add_argument("--year", type=int, default=date.today().year)
+    ap.add_argument("--year", type=int, default=clock.today_kst().year)
     args = ap.parse_args(argv)
 
     if args.command == "build":

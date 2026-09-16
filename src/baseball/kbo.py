@@ -9,11 +9,13 @@ import json
 import logging
 import re
 import time
-from datetime import date, timedelta
+import unicodedata
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
 
+from baseball import clock
 from baseball.config import Settings, get_settings
 from baseball.context import KboEntry
 from baseball.kbo_models import KboUpstreamChanged, ScheduleSnapshot, StandingsSnapshot
@@ -46,6 +48,99 @@ def teams_by_code() -> dict[str, dict[str, Any]]:
 
 def season_year(settings: Settings, today: date) -> int:
     return settings.kbo_season_year or today.year
+
+
+@lru_cache(maxsize=1)
+def venue_index() -> tuple[tuple[str, str], ...]:
+    """구장·연고지 이름 -> 구단 코드. 긴 이름을 먼저 본다(부분 일치 오판 방지).
+
+    잠실은 LG·두산이 공유하므로 한 이름이 여러 코드를 가리킬 수 있다. 그 경우
+    질의에 구단명이 함께 없으면 어느 팀이든 그 구장에서 열리는 경기를 고른다.
+    """
+    pairs: list[tuple[str, str]] = []
+    for team in load_teams().get("teams", []):
+        for key in ("stadium_short", "stadium", "stadium_secondary_short", "hometown"):
+            name = (team.get(key) or "").strip()
+            if name:
+                pairs.append((name, team["code"]))
+    return tuple(sorted(set(pairs), key=lambda p: -len(p[0])))
+
+
+def find_venue(question: str) -> tuple[str, tuple[str, ...]] | None:
+    """질의에서 구장·연고지 이름을 찾는다. (이름, 그 구장을 쓰는 구단 코드들)."""
+    text = unicodedata.normalize("NFKC", question or "")
+    for name, code in venue_index():
+        if name in text:
+            codes = tuple(c for n, c in venue_index() if n == name)
+            return name, codes
+    return None
+
+
+def find_team(question: str) -> dict[str, Any] | None:
+    """질의에서 구단을 찾는다. 별칭이 먼저, 없으면 구장·연고지로."""
+    text = unicodedata.normalize("NFKC", question or "")
+    best: tuple[int, dict[str, Any]] | None = None
+    for team in load_teams().get("teams", []):
+        for alias in team.get("aliases", []):
+            if alias and alias in text and (best is None or len(alias) > best[0]):
+                best = (len(alias), team)
+    if best is not None:
+        return best[1]
+    found = find_venue(question)
+    if found and len(found[1]) == 1:
+        return teams_by_code().get(found[1][0])
+    return None
+
+
+def schedule_snapshot(settings: Settings, *, today: date | None = None,
+                      client: Any = None) -> tuple[Any | None, str, str]:
+    """일정 스냅샷을 캐시 3단 폴백으로 가져온다. entries_for 와 같은 창·같은 키를 쓴다."""
+    today = today or clock.today_kst()
+    year = season_year(settings, today)
+
+    from baseball import kbo_naver
+
+    def _fetch() -> Any:
+        start = today - timedelta(days=settings.kbo_schedule_lookback_days)
+        return kbo_naver.fetch_schedule(
+            start=start, end=date(year, 12, 31), today=today,
+            timeout=settings.kbo_http_timeout_seconds, client=client)
+
+    return _cached(settings, SCHEDULE_KIND, settings.kbo_schedule_ttl_seconds, _fetch)
+
+
+def pick_game(snap: Any, *, now: datetime, codes: tuple[str, ...] = (),
+              venue: str | None = None, prefer: str = "upcoming") -> tuple[Any | None, str]:
+    """경기 하나를 고른다. (경기, 관계). 못 고르면 (None, "none").
+
+    관계는 "upcoming" | "last_finished" 다. 답변이 어느 경기인지 밝힐 수 있게
+    함께 돌려준다 — 사용자가 오인을 바로 알아채는 유일한 수단이다.
+    """
+    if snap is None:
+        return None, "none"
+
+    def _matches(game: Any) -> bool:
+        if codes and not any(c in (game.home_code, game.away_code) for c in codes):
+            return False
+        if venue and venue not in (game.stadium or ""):
+            # 구장 약칭이 경기 stadium 문자열에 없을 수 있어 구단 코드로도 본다
+            return not codes
+        return True
+
+    if prefer == "upcoming":
+        for game in snap.upcoming(now):
+            if _matches(game):
+                return game, "upcoming"
+    finished = [g for g in snap.games
+                if g.is_regular and not g.cancel and g.game_date_time <= now
+                and g.status_code in {"RESULT", "STARTED"} and _matches(g)]
+    if finished:
+        return max(finished, key=lambda g: g.game_date_time), "last_finished"
+    if prefer != "upcoming":
+        for game in snap.upcoming(now):
+            if _matches(game):
+                return game, "upcoming"
+    return None, "none"
 
 
 def _cached(settings: Settings, kind: str, ttl: int,
@@ -195,7 +290,7 @@ def entries_for(question: str, route: Any, *, settings: Settings | None = None,
     topics = tuple(getattr(route, "topics", ()) or ())
     if not topics:
         return []
-    today = today or date.today()
+    today = today or clock.today_kst()
     year = season_year(settings, today)
     codes = teams_by_code()
     teams = [c for c in (getattr(route, "teams", ()) or ()) if c in codes]
@@ -207,8 +302,12 @@ def entries_for(question: str, route: Any, *, settings: Settings | None = None,
             year, today=today, timeout=settings.kbo_http_timeout_seconds, client=client)
 
     def _schedule() -> Any:
+        # 지난 경기까지 함께 받는다. 하이라이트가 지난 경기를 가리키기 때문이다.
+        # 창을 호출부마다 다르게 주면 안 된다. _cached 의 키가 kind 문자열뿐이라
+        # 창이 다른 두 조회가 같은 스냅샷 자리를 서로 덮어쓴다.
+        start = today - timedelta(days=settings.kbo_schedule_lookback_days)
         return kbo_naver.fetch_schedule(
-            start=today, end=date(year, 12, 31), today=today,
+            start=start, end=date(year, 12, 31), today=today,
             timeout=settings.kbo_http_timeout_seconds, client=client)
 
     entries: list[KboEntry] = []
@@ -309,7 +408,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     settings = get_settings()
-    today = date.today()
+    today = clock.today_kst()
 
     if args.cmd == "check":
         meta = load_teams()
