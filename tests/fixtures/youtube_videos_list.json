@@ -1,0 +1,42 @@
+{
+  "kind": "youtube#videoListResponse",
+  "etag": "fixture",
+  "items": [
+    {
+      "kind": "youtube#video",
+      "etag": "fixture",
+      "id": "aAAAAAAAAA1",
+      "snippet": {
+        "publishedAt": "2026-09-13T13:20:11Z",
+        "channelId": "UCxxxxxxxxxxxxxxxxxxxxxx",
+        "title": "[9.13 vs 삼성] LG 트윈스 하이라이트",
+        "description": "9월 13일 잠실 LG-삼성 경기 하이라이트",
+        "thumbnails": {
+          "default": {"url": "https://i.ytimg.com/vi/aAAAAAAAAA1/default.jpg", "width": 120, "height": 90},
+          "medium": {"url": "https://i.ytimg.com/vi/aAAAAAAAAA1/mqdefault.jpg", "width": 320, "height": 180}
+        },
+        "channelTitle": "LG 트윈스"
+      },
+      "contentDetails": {"duration": "PT12M41S", "dimension": "2d", "definition": "hd"},
+      "status": {"uploadStatus": "processed", "privacyStatus": "public", "embeddable": true, "madeForKids": false}
+    },
+    {
+      "kind": "youtube#video",
+      "etag": "fixture",
+      "id": "bBBBBBBBBB2",
+      "snippet": {
+        "publishedAt": "2026-09-10T12:05:00Z",
+        "channelId": "UCyyyyyyyyyyyyyyyyyyyyyy",
+        "title": "[9.10 vs 한화] LG 트윈스 하이라이트",
+        "description": "",
+        "thumbnails": {
+          "default": {"url": "https://i.ytimg.com/vi/bBBBBBBBBB2/default.jpg", "width": 120, "height": 90}
+        },
+        "channelTitle": "LG 트윈스"
+      },
+      "contentDetails": {"duration": "PT13M22S", "dimension": "2d", "definition": "hd"},
+      "status": {"uploadStatus": "processed", "privacyStatus": "public", "embeddable": false, "madeForKids": false}
+    }
+  ],
+  "pageInfo": {"totalResults": 2, "resultsPerPage": 2}
+}

@@ -97,7 +97,8 @@ def _cache_get(settings: Settings, key: str) -> list[dict[str, Any]] | None:
     return payload.get("results") if isinstance(payload, dict) else None
 
 
-def _cache_put(settings: Settings, key: str, results: list[dict[str, Any]]) -> None:
+def _cache_put(settings: Settings, key: str, results: list[dict[str, Any]],
+               *, ttl_seconds: int = WEB_CACHE_TTL_SECONDS) -> None:
     try:
         with db.connect(settings) as conn:
             conn.execute(
@@ -107,7 +108,7 @@ def _cache_put(settings: Settings, key: str, results: list[dict[str, Any]]) -> N
                 ON CONFLICT (key) DO UPDATE SET payload = EXCLUDED.payload,
                     fetched_at = now(), ttl_seconds = EXCLUDED.ttl_seconds
                 """,
-                (key, json.dumps({"results": results}, ensure_ascii=False), WEB_CACHE_TTL_SECONDS),
+                (key, json.dumps({"results": results}, ensure_ascii=False), ttl_seconds),
             )
             conn.commit()
     except Exception as exc:
@@ -147,7 +148,8 @@ def _post(body: dict[str, Any], api_key: str, client: httpx.Client | None) -> li
 
 
 def _tavily_search(
-    query: str, settings: Settings, *, client: httpx.Client | None = None
+    query: str, settings: Settings, *, client: httpx.Client | None = None,
+    topic: str | None = None, use_domains: bool = True, min_score: float = WEB_MIN_SCORE,
 ) -> list[dict[str, Any]]:
     """도메인 제한 → 무제한 → (news 였다면) general 순으로 최대 세 번 시도한다.
 
@@ -158,7 +160,10 @@ def _tavily_search(
     """
     api_key = settings.tavily_api_key.get_secret_value()      # type: ignore[union-attr]
     domains = settings.tavily_include_domain_list
-    topic = "news" if LIVE_WEB_RE.search(unicodedata.normalize("NFKC", query)) else "general"
+    # topic 을 명시하면 자동 판정을 우회한다. 맛집 질의에는 news 가 부적합한데
+    # LIVE_WEB_RE 에 연고지·홈구장이 있어 그냥 두면 news 로 샌다.
+    topic = topic or ("news" if LIVE_WEB_RE.search(unicodedata.normalize("NFKC", query))
+                      else "general")
 
     def body(topic_: str, use_domains: bool) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -174,18 +179,22 @@ def _tavily_search(
             out["include_domains"] = domains
         return out
 
-    attempts = [body(topic, True), body(topic, False)]
+    # use_domains=False 면 도메인 제한 시도를 아예 건너뛴다. 허용 도메인 목록은
+    # KBO·언론사라 맛집 블로그가 없어, 제한을 걸면 0건이 확정이다.
+    attempts = [body(topic, True)] if use_domains else []
+    attempts.append(body(topic, False))
     if topic == "news":
         attempts.append(body("general", False))
 
     for attempt in attempts:
-        results = _keep_relevant(_post(attempt, api_key, client))
+        results = _keep_relevant(_post(attempt, api_key, client), min_score)
         if results:
             return results
     return []
 
 
-def _keep_relevant(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _keep_relevant(results: list[dict[str, Any]],
+                   min_score: float = WEB_MIN_SCORE) -> list[dict[str, Any]]:
     """점수 미달 결과를 버린다.
 
     Tavily 는 맞는 게 없어도 빈 배열 대신 채움용 결과를 준다. 실측 예로 "야구에서 인필드
@@ -193,7 +202,7 @@ def _keep_relevant(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     보드게임이 5건 돌아온다. 이걸 성공으로 치면 사다리가 거기서 멈춰 다음 시도를 못 가고,
     잡음이 그대로 근거 자료로 들어간다. 같은 질문을 무제한으로 찾으면 0.919 가 나온다.
     """
-    return [r for r in results if float(r.get("score") or 0.0) >= WEB_MIN_SCORE]
+    return [r for r in results if float(r.get("score") or 0.0) >= min_score]
 
 
 def _as_of(raw: Any, today: str) -> str:
@@ -214,26 +223,43 @@ def _as_of(raw: Any, today: str) -> str:
         return today
 
 
+def tavily_raw(
+    query: str, settings: Settings | None = None, *, client: httpx.Client | None = None,
+    topic: str | None = None, use_domains: bool = True, min_score: float = WEB_MIN_SCORE,
+    cache_prefix: str = "tavily:", ttl_seconds: int = WEB_CACHE_TTL_SECONDS,
+) -> list[dict[str, Any]]:
+    """캐시 → Tavily 사다리 → 점수 필터 → 캐시 저장. 결과 dict 를 그대로 돌려준다.
+
+    맛집·영상 도구가 같은 HTTP·캐시 경로를 재사용하기 위한 공개 진입점이다.
+    web_search 와 달리 LatestEntry 로 바꾸지 않는다. 용도마다 label·kind·스니펫
+    상한이 다르기 때문이다.
+
+    예외를 사용자 경로로 전파하지 않는다. 실패는 빈 리스트다.
+    """
+    settings = settings or get_settings()
+    if not settings.web_search_enabled or settings.tavily_api_key is None:
+        return []
+    key = cache_prefix + hashlib.sha1(unicodedata.normalize("NFKC", query).encode()).hexdigest()
+    cached = _cache_get(settings, key)
+    if cached is not None:
+        return cached
+    try:
+        results = _tavily_search(query, settings, client=client, topic=topic,
+                                 use_domains=use_domains, min_score=min_score)
+    except Exception as exc:
+        log.warning("Tavily 검색 실패: %s", exc)
+        return []
+    if results:                          # 빈 결과는 캐시하지 않는다(일시적 실패 고착 방지)
+        _cache_put(settings, key, results, ttl_seconds=ttl_seconds)
+    return results
+
+
 def web_search(
     query: str, settings: Settings | None = None, *, client: httpx.Client | None = None
 ) -> list[LatestEntry]:
     """Tavily 1회 검색. 실패·비활성 시 빈 리스트(예외를 사용자 경로로 전파하지 않는다)."""
     settings = settings or get_settings()
-    if not settings.web_search_enabled or settings.tavily_api_key is None:
-        return []
-    key = "tavily:" + hashlib.sha1(unicodedata.normalize("NFKC", query).encode()).hexdigest()
-    cached = _cache_get(settings, key)
-    results: list[dict[str, Any]]
-    if cached is not None:
-        results = cached
-    else:
-        try:
-            results = _tavily_search(query, settings, client=client)
-            if results:                      # 빈 결과는 캐시하지 않는다(일시적 실패 고착 방지)
-                _cache_put(settings, key, results)
-        except Exception as exc:
-            log.warning("Tavily 검색 실패: %s", exc)
-            return []
+    results = tavily_raw(query, settings, client=client)
 
     today = clock.today_kst().isoformat()
     out: list[LatestEntry] = []
