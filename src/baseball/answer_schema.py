@@ -65,10 +65,12 @@ class Fact(BaseModel):
 
     label: str = Field(description='항목 이름(예: "소속 팀", "순위", "피치클락").')
     value: str = Field(description=(
-        "context 에서 그대로 확인되는 값. 숫자를 바꾸거나 반올림하지 않는다."
+        "context 나 검색 결과에서 그대로 확인되는 값. 숫자를 바꾸거나 반올림하지 않는다. "
+        "둘 다에 없어 아는 지식으로 적는다면 caveats 에 확인되지 않았다고 밝힌다."
     ))
     as_of: str | None = Field(description=(
-        "이 값의 기준일(YYYY-MM-DD). context 블록의 기준일을 그대로 쓴다. 없으면 null."
+        "이 값의 기준일(YYYY-MM-DD). context 블록이나 검색 결과의 기준일을 그대로 쓴다. "
+        "없으면 null."
     ))
 
 
@@ -99,12 +101,12 @@ class AnswerDoc(BaseModel):
 
     kind: AnswerKind = Field(description=_KIND_DESC)
     answerable: bool = Field(description=(
-        "제공된 context 만으로 질문에 답할 수 있으면 true. context 에 근거가 없거나 "
-        "질문이 야구와 무관하면 false. false 이면 headline 은 빈 문자열로 두고 "
-        "나머지 서술 필드는 전부 null 또는 빈 배열로 둔다."
+        "context·검색 결과·아는 야구 지식 가운데 하나로라도 답할 수 있으면 true. "
+        "셋 다로 답할 수 없거나 질문이 야구와 무관하면 false. false 이면 headline 은 "
+        "빈 문자열로 두고 나머지 서술 필드는 전부 null 또는 빈 배열로 둔다."
     ))
     refusal: RefusalKind = Field(description=(
-        'answerable 이 true 면 "none". context 에 근거가 없어 답할 수 없으면 "not_in_context". '
+        'answerable 이 true 면 "none". context·검색 결과·지식 어디에도 근거가 없으면 "not_in_context". '
         '질문이 야구와 무관하면 "off_topic". '
         "거부 문장 자체는 어느 필드에도 쓰지 않는다. 이 값만 고르면 프로그램이 정해진 문장을 대신 넣는다."
     ))
@@ -114,8 +116,9 @@ class AnswerDoc(BaseModel):
         "이 문장은 화면 맨 위에 굵게 표시되므로 인사말이나 서론을 넣지 않는다."
     ))
     definition: str | None = Field(description=(
-        "용어나 규칙의 뜻을 한두 문장으로 쉽게 풀어 쓴다. context 에 적힌 정의만 쓰고, "
-        "headline 을 그대로 반복하지 않는다. 해당 내용이 없으면 null."
+        "용어나 규칙의 뜻을 한두 문장으로 쉽게 풀어 쓴다. context 에 적힌 정의를 먼저 쓰고, "
+        "없으면 검색 결과를, 그것도 없으면 아는 지식으로 쓴다. "
+        "headline 을 그대로 반복하지 않는다. 담을 내용이 없으면 null."
     ))
     ruling: str | None = Field(description=(
         "kind 가 situation 일 때만 채운다. 그 장면에 적용되는 판정이나 용어 이름만 짧게"
@@ -128,23 +131,27 @@ class AnswerDoc(BaseModel):
     points: list[Point] = Field(description=(
         '"어떤 상황에서 적용되는가"를 설명하는 불릿 2~5개. 정의를 되풀이하지 말고 '
         "적용 조건, 예외, 구분 기준을 서로 겹치지 않게 나눠 담는다. "
-        "context 에서 확인되는 내용만 쓴다. 담을 내용이 없으면 빈 배열."
+        "context 를 먼저 쓰고, 없으면 검색 결과를, 그것도 없으면 아는 지식으로 쓴다. "
+        "kind 가 entity·latest 이면 여기와 facts 가 본문 전부이므로 비워 두지 않는다. "
+        "담을 내용이 정말 없으면 빈 배열."
     ))
     variations: list[Point] = Field(description=(
         "kind 가 situation 일 때만 채운다. 주자 위치·아웃카운트·점수에 따라 결과가 달라지는 "
-        "경우를 0~3개. context 에 그런 설명이 없으면 빈 배열."
+        "경우를 0~3개. 그런 설명이 없으면 빈 배열."
     ))
     facts: list[Fact] = Field(description=(
         "kind 가 entity 나 latest 일 때만 채운다. 이름과 값으로 나열할 수 있는 사실 0~6개. "
+        "이 kind 에서는 facts 와 points 가 본문 전부다. 물어본 값을 여기 담는다. "
         "규칙 설명에는 쓰지 않는다."
     ))
     example: str | None = Field(description=(
         "이 규칙이나 판정이 실제 경기에서 어떻게 적용되는지 두세 문장으로 장면을 그려 보여 준다. "
-        "context 에 있는 예시만 쓴다. context 에 예시가 없으면 지어내지 말고 null."
+        "context 에 예시가 있으면 그것을 쓰고, 없으면 실제 경기에서 흔히 일어나는 장면으로 "
+        "든다. 규칙 내용 자체를 바꾸거나 없는 규칙을 만들지 않는다. 담을 내용이 없으면 null."
     ))
     why: str | None = Field(description=(
         "이 규칙이 왜 있는지, 또는 이 개념을 알면 경기를 볼 때 무엇이 보이는지 한두 문장. "
-        "context 에 이유가 적혀 있지 않으면 null."
+        "담을 내용이 없으면 null."
     ))
     extra_notes: list[str] = Field(description=(
         "알아 두면 좋은 짧은 문장 0~3개. 앞의 내용과 겹치는 문장은 넣지 않는다."
@@ -158,8 +165,8 @@ class AnswerDoc(BaseModel):
         '(예: "5.09", "DEF-40"). context 에 없는 번호는 절대 넣지 않는다. 없으면 빈 배열.'
     ))
     as_of: str | None = Field(description=(
-        "답변 내용의 기준일을 YYYY-MM-DD 로. context 블록의 '기준일' 또는 '기준' 값을 그대로 옮긴다. "
-        "규칙집만 근거라면 null."
+        "답변 내용의 기준일을 YYYY-MM-DD 로. context 블록이나 검색 결과의 '기준일' 값을 "
+        "그대로 옮긴다. 규칙집만 근거라면 null."
     ))
     sub_answers: list[SubAnswer] = Field(description=(
         "질문이 여러 개를 한꺼번에 묻고 있을 때만 0~3개. 위의 kind 로 담기지 않은 나머지 질문을 "

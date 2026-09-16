@@ -98,13 +98,107 @@ def _grounding_notice(final: dict) -> str | None:
     partial_refusal 은 답변 스키마를 켠 뒤로는 뜰 수 없다. chain 이 거부 문장이 섞인 답변을
     통째로 순수 거부로 강등하기 때문이다. 배너와 CSS 를 버리는 대신 여기로 용도를 옮긴다.
     """
-    if final.get("freshness") == "model":
+    kinds = {s.get("kind") for s in final.get("sources", [])}
+    if "model" in kinds:
+        # freshness 만 보면 놓친다. 도구가 결과를 하나라도 가져오면 freshness 가 web 으로
+        # 승격되어, 정작 그 결과에 답이 없어 기억으로 메운 답변에서 경고가 사라진다.
+        if kinds - {"model"}:
+            return ("⚠ 찾은 자료에서 답을 확인하지 못했습니다. "
+                    "일반적인 야구 상식이 섞였을 수 있으니 출처로 확인해 주세요.")
         return "⚠ 규칙집과 웹 검색에서 근거를 찾지 못해 일반적인 야구 상식으로 답했습니다."
     if final.get("partial_refusal"):
         return "⚠ 답변 일부에 근거가 없는 부분이 있습니다."
     if final.get("format_ok") is False:
         return "⚠ 답변 형식 검사를 통과하지 못했습니다. 내용이 평소와 다를 수 있습니다."
     return None
+
+
+# 블로그 스니펫에는 제목(#)·표(|)·글머리(▶)가 섞여 있다. st.caption 과 st.markdown 은
+# 마크다운을 렌더하므로 그대로 넘기면 카드 안에 거대한 제목과 빈 표가 생긴다.
+_MD_NOISE = re.compile(r"[#*_`>|\[\]▶◀●■□▲△~]+")
+
+
+def _plain(text: str | None, limit: int = 110) -> str:
+    """검색 스니펫을 한 줄 평문으로 줄인다."""
+    flat = _MD_NOISE.sub(" ", text or "")
+    flat = re.sub(r"\s+", " ", flat).strip()
+    return flat[:limit] + ("…" if len(flat) > limit else "")
+
+
+MAPS_KEY = "GOOGLE_MAPS_EMBED_API_KEY"
+MAPS_EMBED_URL = "https://www.google.com/maps/embed/v1/search"
+
+
+def _config(name: str) -> str | None:
+    """os.environ -> st.secrets -> 저장소 .env 순. gate.configured_pin 과 같은 방식이다."""
+    value = os.getenv(name)
+    if value and value.strip():
+        return value.strip()
+    try:
+        secret = st.secrets.get(name)
+        if secret is not None and str(secret).strip():
+            return str(secret).strip()
+    except Exception:                                   # noqa: BLE001
+        pass
+    try:
+        from dotenv import dotenv_values
+
+        raw = dotenv_values(Path(__file__).resolve().parents[1] / ".env").get(name)
+        return str(raw).strip() if raw else None
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+def render_media(items: list[dict]) -> None:
+    """영상과 지도. 전부 1급 위젯이라 커스텀 HTML 을 쓰지 않는다.
+
+    st.video 는 YouTube URL 을 네이티브로 받는다. embeddable 이 false 인 영상은
+    iframe 에서 빈 상자가 되므로 플레이어 대신 링크 버튼으로 격하한다.
+    """
+    videos = [m for m in items if m.get("kind") == "video" and m.get("url")]
+    maps = [m for m in items if m.get("kind") == "map" and m.get("query")]
+
+    if videos:
+        cols = st.columns(min(len(videos), 2))          # 시안의 2열 그리드
+        for i, v in enumerate(videos):
+            with cols[i % len(cols)]:
+                playable = v.get("embeddable", True)
+                if playable:
+                    st.video(v["url"])
+                else:
+                    st.link_button("YouTube에서 보기", v["url"], width="stretch")
+                meta = " · ".join(x for x in [
+                    v.get("published_at"), v.get("duration"),
+                    "재생 가능" if playable else "외부 재생 제한",
+                ] if x)
+                st.caption(meta)
+        st.caption("영상 데이터 및 재생: YouTube (YouTube Data API v3)")
+
+    key = _config(MAPS_KEY) if maps else None
+    for m in maps:
+        if not key:
+            break                                        # 키가 없으면 조용히 생략한다
+        # st.iframe 은 1.63 의 1급 위젯이다(st.components.v1.iframe 은 1.56 에서 deprecated).
+        # 최소 200x200 은 Embed API 요구사항이다.
+        st.iframe(f"{MAPS_EMBED_URL}?key={quote(key)}&q={quote(m['query'])}", height=320)
+        st.caption(f"지도: Google Maps · {m['query']}")
+
+
+def render_places(places: list[dict]) -> None:
+    """맛집 카드. url 없는 항목은 그리지 않는다 — 방어 다섯 겹의 마지막이다."""
+    cards = [p for p in places if p.get("url") and p.get("name")]
+    if not cards:
+        return
+    cols = st.columns(2)
+    for i, p in enumerate(cards):
+        with cols[i % 2]:
+            with st.container(border=True, key=f"place-{p.get('id', i)}-{uuid.uuid4().hex[:4]}"):
+                st.markdown(f"**{_plain(p['name'], 60)}**")
+                snippet = _plain(p.get("snippet"))
+                if snippet:
+                    st.caption(snippet)
+                st.link_button("출처 열기", p["url"], width="stretch")
+    st.caption("웹 검색 결과이며 영업 여부·위치·메뉴는 확인되지 않았습니다.")
 
 
 def render_sources(sources: list[dict]) -> None:
