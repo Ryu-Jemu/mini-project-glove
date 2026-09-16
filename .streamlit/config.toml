@@ -1,0 +1,110 @@
+# LG 트윈스 색상 유래 팔레트(색상만). 출처·대비비: data/brand_palette.yaml, docs/설계서v1.md §9.
+[server]
+# 바인딩 주소·포트는 이 파일에 두지 않는다.
+# Streamlit Community Cloud 가 덮어쓴다고 문서화한 옵션은 runOnSave·enableXsrfProtection·
+# showErrorDetails·fastReruns·gatherUsageStats 다섯 개뿐이고 server.address 는 거기 없다.
+# server.address 는 실제 소켓 바인딩이므로 파일에 127.0.0.1 을 커밋하면 Cloud 헬스체크가
+# 닿지 못해 앱이 뜨지 않을 수 있다. 로컬 루프백 바인딩은 Makefile 의 실행 플래그로 강제한다
+# (설정 우선순위: 명령행 > 환경변수 > 이 파일). 자세한 근거는 docs/배포.md 3-A.
+headless = true
+enableStaticServing = false
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+# 색상 키·base 금지: 색상이 여기 있으면 light 단일 테마로 고정된다.
+font              = "Pretendard, system-ui, sans-serif"
+headingFont       = "Pretendard, system-ui, sans-serif"
+codeFont          = "ui-monospace, SFMono-Regular, Menlo, monospace"
+baseFontSize      = 16
+baseFontWeight    = 400
+headingFontWeights = [700, 600, 600]
+baseRadius        = "medium"
+buttonRadius      = "full"
+showWidgetBorder  = true
+showSidebarBorder = true
+metricValueFontSize   = "2rem"
+metricValueFontWeight = 700
+
+[[theme.fontFaces]]
+family = "Pretendard"
+url = "https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/woff2/Pretendard-Regular.woff2"
+weight = 400
+style = "normal"
+
+[[theme.fontFaces]]
+family = "Pretendard"
+url = "https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/woff2/Pretendard-Bold.woff2"
+weight = 700
+style = "normal"
+
+[theme.light]
+primaryColor                   = "#C40037"
+backgroundColor                = "#FFFFFF"
+secondaryBackgroundColor       = "#F4F4F4"
+textColor                      = "#131313"
+linkColor                      = "#A50034"
+linkUnderline                  = true
+borderColor                    = "#E2E2E2"
+dataframeBorderColor           = "#D2D2D2"
+dataframeHeaderBackgroundColor = "#F4F4F4"
+codeBackgroundColor            = "#F4F4F4"
+codeTextColor                  = "#860524"
+redColor = "#C40037"
+redTextColor = "#860F26"
+redBackgroundColor = "#FFEBEA"
+greenColor = "#007F30"
+greenTextColor = "#00581E"
+greenBackgroundColor = "#E3F6E5"
+orangeColor = "#8D5E00"
+orangeTextColor = "#624000"
+orangeBackgroundColor = "#FCEEDB"
+blueColor = "#006CB5"
+blueTextColor = "#004A7F"
+blueBackgroundColor = "#E5F2FF"
+grayColor = "#6D6E71"
+grayTextColor = "#333333"
+grayBackgroundColor = "#F1F1F1"
+chartCategoricalColors = ["#C40037", "#6D6E71", "#EB5E69", "#A7A9AC", "#860524", "#C2C2C2"]
+chartSequentialColors  = ["#FFF2F2","#FFE4E3","#FFCACA","#FF9FA1","#EB5E69","#D92D49","#C40037","#A6012D","#860524","#62081A"]
+
+[theme.light.sidebar]
+backgroundColor          = "#F4F4F4"
+secondaryBackgroundColor = "#FFFFFF"
+borderColor              = "#E2E2E2"
+
+[theme.dark]
+primaryColor                   = "#D92D49"
+backgroundColor                = "#131313"
+secondaryBackgroundColor       = "#222222"
+textColor                      = "#F1F1F1"
+linkColor                      = "#EB5E69"
+linkUnderline                  = true
+borderColor                    = "#333333"
+dataframeBorderColor           = "#727171"
+dataframeHeaderBackgroundColor = "#292929"
+codeBackgroundColor            = "#222222"
+codeTextColor                  = "#FF9FA1"
+redColor = "#EB5E69"
+redTextColor = "#FFBEBE"
+redBackgroundColor = "#3D1A1C"
+greenColor = "#3BBB5B"
+greenTextColor = "#A9E2B0"
+greenBackgroundColor = "#112E16"
+orangeColor = "#E79D00"
+orangeTextColor = "#F4C98E"
+orangeBackgroundColor = "#362202"
+blueColor = "#56A4EB"
+blueTextColor = "#ACD6FF"
+blueBackgroundColor = "#0D2840"
+grayColor = "#A7A9AC"
+grayTextColor = "#E2E2E2"
+grayBackgroundColor = "#292929"
+chartCategoricalColors = ["#EB5E69", "#A7A9AC", "#FF9FA1", "#727171", "#D92D49", "#C2C2C2"]
+chartSequentialColors  = ["#39040C","#62081A","#860524","#A6012D","#C40037","#D92D49","#EB5E69","#FF9FA1","#FFCACA","#FFE4E3"]
+
+[theme.dark.sidebar]
+backgroundColor          = "#0E0E0E"
+secondaryBackgroundColor = "#222222"
+borderColor              = "#333333"

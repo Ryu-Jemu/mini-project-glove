@@ -1,0 +1,12 @@
+{"artboards":[
+ {"file":"Main.dc.html","x":0,"y":0,"w":1440,"h":900,"title":"챗 화면 · Light"},
+ {"file":"Sources.dc.html","x":1540,"y":0,"w":1440,"h":900,"title":"근거 패널 · Light"},
+ {"file":"Sidebar.dc.html","x":3080,"y":0,"w":320,"h":900,"title":"사이드바 · Light"},
+ {"file":"Main-Dark.dc.html","x":0,"y":1000,"w":1440,"h":900,"title":"챗 화면 · Dark"},
+ {"file":"Sources-Dark.dc.html","x":1540,"y":1000,"w":1440,"h":900,"title":"근거 패널 · Dark"},
+ {"file":"Sidebar-Dark.dc.html","x":3080,"y":1000,"w":320,"h":900,"title":"사이드바 · Dark"},
+ {"file":"Teams.dc.html","x":0,"y":2000,"w":1440,"h":900,"title":"구단 정보 (Phase 2)"},
+ {"file":"Schedule.dc.html","x":1540,"y":2000,"w":1440,"h":900,"title":"잔여 일정 (Phase 2)"},
+ {"file":"Highlights.dc.html","x":3080,"y":2000,"w":1440,"h":900,"title":"하이라이트 (Phase 2)"},
+ {"file":"Tokens.dc.html","x":0,"y":3000,"w":1200,"h":800,"title":"디자인 토큰"}],
+ "annotations":[{"id":"disclaimer","x":1300,"y":3000,"w":600,"text":"색상만 사용. 엠블럼·워드마크·마스코트·유니폼·구단 서체 금지. 비공식 개인 학습용 프로젝트."}]}

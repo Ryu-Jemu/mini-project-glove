@@ -1,0 +1,114 @@
+# Phase 1 골든셋 — expected_rule_refs 는 2026-09-15 실제 검색 결과로 확인한 값이다.
+# 매칭은 접두 비교(예: "5.09" 는 "5.09(a)(5)" 도 인정).
+version: 1
+cases:
+  - id: 1
+    question: "인필드 플라이가 뭐야?"
+    category: 용어
+    expect_route: rule
+    expect_status: answered
+    expected_rule_refs: ["DEF-40", "5.09"]
+    must_contain: ["인필드"]
+  - id: 2
+    question: "타자가 친 공이 담장을 넘어가면 뭐야?"
+    category: 상황
+    expect_route: rule
+    expect_status: answered
+    expected_rule_refs: ["5.05", "5.06(b)(4)(A)"]   # 홈런은 '용어의 정의' 항목이 아니다
+    must_contain: ["홈런|득점|진루"]
+  - id: 3
+    question: "보크가 뭐야?"
+    category: 용어
+    expect_route: rule
+    expect_status: answered
+    expected_rule_refs: ["DEF-3", "6.02"]
+    must_contain: ["보크"]
+  - id: 4
+    question: "타구에 관중의 방해가 있었을 때는 어떻게 되나요?"
+    category: 상황
+    expect_route: rule
+    expect_status: answered
+    expected_rule_refs: ["6.01", "DEF-44"]
+    must_contain: ["방해|인터피어런스"]
+  - id: 5
+    question: "도루가 뭐야?"
+    category: 용어
+    expect_route: rule
+    expect_status: answered
+    expected_rule_refs: ["9.07"]
+    must_contain: ["도루"]
+  - id: 6
+    question: "희생번트와 희생플라이의 차이점은?"
+    category: 비교
+    expect_route: rule
+    expect_status: answered
+    expected_rule_refs: ["9.08"]
+    must_contain: ["희생"]
+  - id: 7
+    question: "타점이 뭐야?"
+    category: 엣지
+    expect_route: rule
+    expect_status: answered
+    expected_rule_refs: ["9.04"]
+    must_contain: ["타점"]
+  - id: 8
+    question: "5.09 규칙 알려줘"
+    category: 규칙번호
+    expect_route: rule
+    expect_status: answered
+    expected_rule_refs: ["5.09"]
+    expect_top1: "5.09"
+    must_contain: ["아웃"]
+  - id: 9
+    question: "스트라이크 존이 어디야?"
+    category: 용어
+    expect_route: rule
+    expect_status: answered
+    expected_rule_refs: ["DEF-73"]
+    must_contain: ["스트라이크"]
+  - id: 10
+    question: "무사 1루에서 땅볼, 2루에서 주자가 아웃되고 타자는 세이프. 이게 뭐야?"
+    category: 상황
+    expect_route: rule
+    expect_status: answered
+    expected_rule_refs: ["5.09"]
+    must_contain: ["아웃|포스|병살"]
+  - id: 11
+    question: "2026년에 규칙이 뭐가 바뀌었어?"
+    category: 변경요약
+    expect_route: rule
+    expect_status: answered
+    expected_rule_refs: ["CHG-2026"]
+    must_contain: ["인치|시프트|변경"]
+  - id: 12
+    question: "피치클락 몇 초야?"
+    category: 리그규정
+    expect_route: latest
+    expect_status: answered
+    expect_freshness_in: [snapshot]
+    expected_rule_refs: []
+    must_contain: ["18|23"]
+  - id: 13
+    question: "오늘 KT 경기 몇 시야?"
+    category: 실시간
+    expect_route: latest
+    expect_status_in: [answered, not_in_rulebook, phase2_pending]
+    # 실데이터 경로가 생겨 live/snapshot 도 정상 결과다. 라우팅·거부 게이트는 그대로다.
+    expect_freshness_in: [web, static, live, snapshot]
+    expected_rule_refs: []
+  - id: 14
+    question: "오늘 서울 날씨 어때?"
+    category: 오프토픽
+    expect_route: off_topic
+    expect_status: out_of_scope
+    expect_answer_exact: OFF_TOPIC_REFUSAL
+    expect_llm_called: false
+    expected_rule_refs: []
+  - id: 15
+    question: "파이썬 리스트 정렬하는 법 알려줘"
+    category: 오프토픽
+    expect_route: off_topic
+    expect_status: out_of_scope
+    expect_answer_exact: OFF_TOPIC_REFUSAL
+    expect_llm_called: false
+    expected_rule_refs: []

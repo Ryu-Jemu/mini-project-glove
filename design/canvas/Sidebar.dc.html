@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" href="./favicon.svg">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    /* 실제 앱은 Pretendard(SIL OFL)를 쓴다. 아트보드는 CSP 상 웹폰트를 못 받아 시스템 스택으로 근사한다. */
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif; }
+    a { color: #A50034; } a:hover { color: #C40037; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  </style>
+</helmet>
+<div style="width:320px;height:900px;background:#F4F4F4;color:#131313;border-right:1px solid #E2E2E2;padding:20px;display:flex;flex-direction:column;gap:18px">
+  <strong style="font-size:15px">KBO 야구 규칙 도우미</strong>
+  <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+    <span style="width:8px;height:8px;border-radius:999px;background:#007F30;display:inline-block"></span> 준비됨 · chunks 703
+  </div>
+  <div class="mono" style="font-size:11px;color:#666666;line-height:1.7">
+    gpt-4o-mini<br>text-embedding-3-large@1024<br>prompt 5ce6f2ca-7407a382
+  </div>
+  <button style="border:1px solid #888888;background:transparent;color:#131313;border-radius:10px;padding:10px;font-size:13px">원문 PDF 열기</button>
+  <div>
+    <div style="font-size:12px;color:#666666;margin-bottom:8px">예시 질문</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px"><span style="border:1px solid #E2E2E2;border-radius:999px;padding:6px 12px;font-size:12px;color:#131313">인필드 플라이가 뭐야?</span><span style="border:1px solid #E2E2E2;border-radius:999px;padding:6px 12px;font-size:12px;color:#131313">보크가 뭐야?</span><span style="border:1px solid #E2E2E2;border-radius:999px;padding:6px 12px;font-size:12px;color:#131313">타점이 뭐야?</span><span style="border:1px solid #E2E2E2;border-radius:999px;padding:6px 12px;font-size:12px;color:#131313">도루가 뭐야?</span><span style="border:1px solid #E2E2E2;border-radius:999px;padding:6px 12px;font-size:12px;color:#131313">5.09 알려줘</span><span style="border:1px solid #E2E2E2;border-radius:999px;padding:6px 12px;font-size:12px;color:#131313">피치클락 몇 초야?</span></div>
+  </div>
+  <div>
+    <div style="font-size:12px;color:#666666;margin-bottom:8px">신선도</div>
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
+      <span>규칙집 — 2026 공식야구규칙(고정)</span>
+      <span>스냅샷 — KBO 리그 규정(30일)</span>
+      <span>웹 — 검색 결과(6시간)</span>
+    </div>
+  </div>
+  <button style="border:none;background:#C40037;color:#FFFFFF;border-radius:999px;padding:10px;font-size:13px;font-weight:600">세션 초기화</button>
+  <p style="margin-top:auto;font-size:11px;line-height:1.7;color:#666666">비공식 개인 학습용 프로젝트입니다. LG 트윈스·(주)LG스포츠·KBO와 무관하며 구단 로고·워드마크·마스코트·유니폼 디자인을 사용하지 않습니다. 순위·일정 데이터: 네이버 스포츠, 영상: YouTube.</p>
+</div>
+</x-dc>
+</body>
+</html>

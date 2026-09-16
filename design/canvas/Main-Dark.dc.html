@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" href="./favicon.svg">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    /* 실제 앱은 Pretendard(SIL OFL)를 쓴다. 아트보드는 CSP 상 웹폰트를 못 받아 시스템 스택으로 근사한다. */
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif; }
+    a { color: #EB5E69; } a:hover { color: #FF9FA1; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  </style>
+</helmet>
+<div style="width:1440px;height:900px;background:#131313;color:#F1F1F1;display:flex;flex-direction:column">
+  <header style="display:flex;align-items:center;justify-content:space-between;padding:18px 32px;border-bottom:1px solid #333333">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="width:28px;height:28px;border-radius:999px;background:#D92D49;display:inline-block"></span>
+      <strong style="font-size:18px;letter-spacing:-0.2px">KBO 야구 규칙 도우미</strong>
+      <span style="font-size:12px;color:#A7A9AC">2026 공식야구규칙 기반</span>
+    </div>
+    <span class="mono" style="font-size:12px;color:#A7A9AC">gpt-4o-mini · 5ce6f2ca-7407a382</span>
+  </header>
+
+  <main style="flex:1;display:flex;flex-direction:column;gap:20px;padding:28px 32px;overflow:hidden">
+    <div style="display:flex;justify-content:flex-end">
+      <div style="max-width:620px;background:#222222;border:1px solid #333333;border-radius:16px 16px 4px 16px;padding:14px 18px;font-size:15px;line-height:1.6">
+        인필드 플라이가 뭐야?
+      </div>
+    </div>
+
+    <div style="display:flex;gap:14px;align-items:flex-start">
+      <span style="width:32px;height:32px;border-radius:999px;background:#D92D49;flex:none"></span>
+      <div style="flex:1;max-width:900px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#A7A9AC">
+          <span style="width:8px;height:8px;border-radius:999px;background:#007F30;display:inline-block"></span>
+          규칙집 검색 완료 · 6건 조회 · 1.2s
+        </div>
+        <div style="font-size:15px;line-height:1.75">
+          <p style="margin:0 0 12px">무사 또는 1사에 주자가 1·2루 또는 만루일 때, 타자가 친 뜬공을 내야수가 평범한 수비로 잡을 수 있으면 심판이 곧바로 <strong>인필드 플라이</strong>를 선언합니다.</p>
+          <p style="margin:0 0 12px">선언되는 순간 타자는 아웃이 되고, 주자는 진루할 의무에서 풀립니다. 수비가 일부러 공을 떨어뜨려 병살을 노리는 것을 막기 위한 규칙입니다.</p>
+          <p style="margin:0">직선타구나 번트가 떠오른 경우는 제외됩니다.</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #3BBB5B;color:#A9E2B0;background:#112E16;border-radius:999px;padding:4px 12px;font-size:12px">규칙집 근거 3건</span>
+          <span style="font-size:12px;color:#A7A9AC">기준일 2026-01-01</span>
+        </div>
+        <div style="border:1px solid #333333;border-radius:12px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;background:#222222">
+          <span style="font-size:13px;color:#F1F1F1">▸ 근거 자료 3건</span>
+          <span class="mono" style="font-size:12px;color:#A7A9AC">DEF-40 · 5.09 · DEF-29</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div style="padding:16px 32px 10px;border-top:1px solid #333333;display:flex;gap:12px;align-items:center">
+    <div style="flex:1;border:1px solid #727171;border-radius:999px;padding:13px 20px;color:#A7A9AC;font-size:15px">야구 규칙을 물어보세요</div>
+    <button style="border:none;background:#D92D49;color:#FFFFFF;border-radius:999px;padding:13px 26px;font-size:15px;font-weight:600">전송</button>
+  </div>
+  <footer class="mono" style="padding:0 32px 18px;font-size:12px;color:#A7A9AC">규칙집 · 기준일 2026-01-01 · 3.9k/420 tok · $0.0008 · 2.1s</footer>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,60 @@
+# LG 트윈스 색상 조사 스냅샷(색상 값만 사용, 로고·워드마크·마스코트·구단 서체 사용 금지).
+# 색상 정본은 .streamlit/config.toml 이며 이 파일은 출처·근거를 보존한다.
+as_of: "2026-09-15"
+primary:
+  hex: "#C40037"
+  role: "스크린 정본(라이트 primary)"
+  source_url: "https://www.lgtwins.com/css/twins.css"
+  evidence: "공식 사이트 스타일시트에서 최다 사용 색 + logo.png 픽셀값 일치"
+  confidence: confirmed
+primary_deep:
+  hex: "#A50034"
+  role: "라이트 링크·hover (CI 스펙 / LG Heritage Red)"
+  source_url: "https://www.lg.com/global/our-identity/color/"
+  evidence: "PANTONE 207 C / R165 G0 B52"
+  confidence: confirmed
+primary_dark_mode:
+  hex: "#D92D49"
+  role: "다크 primary (OKLCH 동일 색상각 18.3 상향)"
+  evidence: "#C40037 은 #131313 대비 3.01:1 로 UI 경계 기준 미달"
+  confidence: confirmed
+accent_pink:
+  hex: "#FF2052"
+  role: "대형 텍스트·아이콘 한정"
+  source_url: "https://www.lgtwins.com/css/main.css"
+  confidence: confirmed
+neutrals:
+  black: "#000000"
+  near_black: "#131313"
+  surface_dark: "#222222"
+  gray_logo: "#727171"
+  gray: "#6D6E71"
+  silver: "#A7A9AC"
+  border_light: "#E2E2E2"
+  surface_light: "#F4F4F4"
+  white: "#FFFFFF"
+  confidence: confirmed
+rejected:
+  - hex: "#C7004E"
+    reason: "영문 위키백과 인포박스 스와치 — 1차 출처 없음"
+  - hex: "#C30452"
+    reason: "한국어 위키백과 틀 스와치 — 1차 출처 없음"
+  - hex: "#FD312E"
+    reason: "LG Active Red(2023 모기업 VI) — 구단 스타일시트에 0회"
+  - hex: "#349600"
+    reason: "잠실 좌석 구역색(ticket.css) — 브랜드 색 아님"
+status_colors:
+  note: "OKLCH 색상 회전으로 만든 팔레트 확장(구단색 아님)"
+  success_light: "#007F30"
+  warn_light: "#8D5E00"
+  info_light: "#006CB5"
+  success_dark: "#3BBB5B"
+  warn_dark: "#E79D00"
+  info_dark: "#56A4EB"
+typography:
+  app_font: "Pretendard (SIL OFL 1.3.9)"
+  forbidden: "LGTWINSInvincible / LGTWINSBold / LGTWINSRegular (구단 전용 서체)"
+rebrand_2025_2026:
+  changed: false
+  evidence: "2017년 엠블럼 세대 유지, 2026 유니폼은 2025 대비 통합우승 패치 외 차이 없음"
+  confidence: confirmed
