@@ -180,3 +180,34 @@ def test_short_forms_still_match(title: str) -> None:
 def test_name_variants_include_aliases() -> None:
     got = highlights._name_variants("LG 트윈스", "NC 다이노스")
     assert {"LG", "엘지", "트윈스", "NC", "다이노스"} <= set(got)
+
+
+# --------------------------------------------------------------------------- 제목 표기 (실측)
+
+# 구단·리그 채널이 실제로 쓰는 표기를 그대로 옮겼다.
+REAL_TITLES = [
+    ("[2026 KBO 리그 H/L] LG vs NC (09.16)", True, "LG 구단 채널 — 약어만 쓴다"),
+    ("[LG트윈스 vs NC다이노스] 9.16(수) 야구 하이라이트｜2026 KBO 리그｜KBO X TVING", True, "KBO 공식"),
+    ("오늘 최고의 장면은? | 9월 16일 하이라이트 | LG vs NC", True, "KIA 형식"),
+    ("또 4실점 패전, LG트윈스 치리노스의 문제점은 뭘까?", False, "토크 영상"),
+]
+
+
+@pytest.mark.parametrize("title,expected,label", REAL_TITLES)
+def test_real_channel_titles(title: str, expected: bool, label: str) -> None:
+    """실측 회귀: "[2026 KBO 리그 H/L] LG vs NC (09.16)" 가 0점으로 탈락했다.
+
+    제목이 '하이라이트' 가 아니라 'H/L' 이었고, 그 키워드가 필수 조건이라 정답 영상이
+    걸러졌다. 키워드 조건 자체는 유지해야 한다 — 빼면 마지막 사례(토크 영상)가
+    구단명과 날짜만으로 통과한다.
+    """
+    opp = highlights._name_variants("LG 트윈스", "NC 다이노스")
+    score = highlights.score_match({"title": title, "published_at": "2026-09-16"},
+                                   game_date=GAME_DATE.replace(day=16), opponents=opp)
+    assert (score >= highlights.MIN_MATCH_SCORE) is expected, f"{label}: {score}점"
+
+
+def test_zero_padded_date_in_title_counts() -> None:
+    """구단 채널은 "(09.16)" 처럼 0 을 채워 쓴다."""
+    assert "09.16" in highlights._date_tokens(date(2026, 9, 16))
+    assert "9.16" in highlights._date_tokens(date(2026, 9, 16))

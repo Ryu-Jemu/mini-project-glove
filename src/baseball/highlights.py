@@ -33,7 +33,16 @@ from baseball.context import KboEntry
 
 log = logging.getLogger(__name__)
 
-HIGHLIGHT_RE = re.compile(r"하이라이트|highlight|풀\s*영상|명장면", re.I)
+# 구단·리그 채널이 실제로 쓰는 표기. 실측으로 모았다.
+#   KBO 공식  "[두산베어스 vs 키움히어로즈] 5.3(일) 야구 하이라이트｜2026 KBO 리그"
+#   LG        "[2026 KBO 리그 H/L] LG vs NC (09.16)"        ← 약어만 쓴다
+#   KIA       "오늘 최고의 장면은? | 9월 13일 하이라이트 | KIA vs 한화"
+# 이 조건은 필수다. 빼면 "또 4실점 패전, LG트윈스 치리노스의 문제점은 뭘까?" 같은
+# 토크 영상이 구단명과 날짜만으로 통과한다.
+HIGHLIGHT_RE = re.compile(
+    r"하이라이트|highlights?|H\s*[/.]\s*L|풀\s*(?:영상|경기)|명장면|최고의\s*장면|다시\s*보기",
+    re.I,
+)
 MIN_MATCH_SCORE = 2
 PUBLISH_WINDOW_DAYS = 2          # 경기 다음 날 올라오는 경우가 흔하다
 
