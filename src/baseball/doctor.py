@@ -113,6 +113,36 @@ def _youtube(settings: Settings) -> str:
 
 
 
+def _highlights(settings: Settings) -> str:
+    """네트워크를 타지 않는다. 게이트와 채널 파일만 본다.
+
+    하이라이트가 안 나올 때 첫 번째로 보는 줄이다. 예전에는 게이트가 닫혔는지
+    채널이 없는지 구분할 방법이 없었다.
+    """
+    from baseball import highlights, kbo, youtube
+
+    if not settings.highlights_enabled:
+        why = []
+        if settings.enable_highlights != "on":
+            why.append("ENABLE_HIGHLIGHTS!=on")
+        if settings.youtube_kbo_api_key is None:
+            why.append("YOUTUBE_KBO_API_KEY 없음")
+        return f"하이라이트 off ({', '.join(why)})"
+
+    data = highlights.load_channels()
+    chans = data.get("channels", [])
+    if not chans:
+        return "하이라이트 on 이지만 채널 파일이 비었다 — data/kbo_youtube_channels.json 확인"
+    missing = (set(kbo.teams_by_code()) | {highlights.LEAGUE_CODE}) - {c.get("code") for c in chans}
+    resolved = sum(1 for c in chans if youtube.uploads_playlist_id(c.get("channel_id") or ""))
+    note = f"하이라이트 ok (채널 {len(chans)}개, id 확정 {resolved}개, as_of={data.get('as_of', '?')})"
+    if missing:
+        note += f" — 누락 {sorted(missing)}"
+    if resolved < len(chans):
+        note += " · 미확정은 첫 조회 때 channels.list 1 unit"
+    return note
+
+
 def _kbo(_: Settings) -> str:
     """네트워크를 타지 않는다. make setup 이 상류 장애로 실패하면 안 된다."""
     try:
@@ -147,6 +177,7 @@ CHECKS: list[tuple[str, Callable[[Settings], str], bool]] = [
     ("tavily", _tavily, False),
     ("langsmith", _langsmith, False),
     ("youtube", _youtube, False),
+    ("highlights", _highlights, False),
     ("kbo", _kbo, False),
     ("access", _access, False),
     ("prompts", _prompts, True),

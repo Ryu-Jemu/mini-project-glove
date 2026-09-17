@@ -115,6 +115,26 @@ def _cache_put(settings: Settings, key: str, results: list[dict[str, Any]],
         log.warning("assistant_cache 저장 실패: %s", exc)
 
 
+def cache_get(settings: Settings, key: str) -> list[dict[str, Any]] | None:
+    """assistant_cache 읽기. 미스는 None, 저장된 빈 결과는 [] 다.
+
+    이 구분이 곧 부정 캐시다 — "아직 영상이 없다" 도 사실이라 저장할 값이 있고,
+    저장된 빈 결과와 캐시 미스를 섞으면 매번 다시 조회하게 된다.
+    """
+    return _cache_get(settings, key)
+
+
+def cache_put(settings: Settings, key: str, results: list[dict[str, Any]],
+              *, ttl_seconds: int) -> None:
+    """assistant_cache 쓰기. tavily_raw 와 달리 **빈 결과도 저장한다**.
+
+    tavily_raw 가 빈 결과를 안 넣는 것은 일시적 웹 검색 실패를 고착시키지 않기
+    위해서다. 하이라이트는 반대다 — 0건이 흔한 정상 결과라 짧은 TTL 로 저장해
+    같은 질문이 매번 쿼터를 태우는 것을 막는다. 대신 TTL 을 호출자가 정한다.
+    """
+    _cache_put(settings, key, results, ttl_seconds=ttl_seconds)
+
+
 class WebSearchError(RuntimeError):
     """Tavily 호출 실패. web_search 가 잡아서 빈 결과로 낮춘다."""
 

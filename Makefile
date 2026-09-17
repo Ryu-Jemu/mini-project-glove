@@ -2,7 +2,7 @@
 SHELL := /bin/bash
 PY := ./bin/br python
 
-.PHONY: fix-pth sync up down ingest api ui test test-live test-net eval doctor setup
+.PHONY: fix-pth sync up down ingest api ui test test-live test-net eval doctor setup highlights highlights-find
 fix-pth:            ## macOS UF_HIDDEN 으로 .pth 가 무시되는 문제 해제
 	@chflags nohidden .venv/lib/python3.12/site-packages/*.pth 2>/dev/null || true
 sync: ; uv sync && $(MAKE) fix-pth
@@ -22,6 +22,10 @@ setup:              ## 팀원용 1회 셋업: 의존성 → 컨테이너 → 스
 up: ; docker compose up -d
 down: ; docker compose down
 doctor: fix-pth ; $(PY) -m baseball.doctor
+highlights: fix-pth   ## 하이라이트 채널 파일 점검(네트워크 없음)
+	$(PY) -m baseball.highlights channels
+highlights-find: fix-pth  ## 하이라이트 탐색을 단계별로 본다(최대 4 units). Q="어제 LG 경기 하이라이트"
+	$(PY) -m baseball.highlights find "$${Q:-어제 경기 하이라이트}"
 ingest: fix-pth ; $(PY) -m baseball.ingest
 api: fix-pth ; ./bin/br uvicorn baseball.api:app --host 127.0.0.1 --port 8000
 ui: fix-pth ; API_BASE_URL=http://127.0.0.1:8000 ./bin/br streamlit run ui/app.py --server.address 127.0.0.1 --server.port 8501

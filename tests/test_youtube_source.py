@@ -174,3 +174,146 @@ def test_module_never_uses_forbidden_endpoints() -> None:
     assert "/search" not in literals
     for host in ("koreabaseball.com", "statiz", "espn.com", "namu.wiki"):
         assert host not in literals
+
+
+# --------------------------------------------------------------------------- 업로드 재생목록
+
+def _playlist() -> dict[str, Any]:
+    return json.loads((FIXTURES / "youtube_playlist_items.json").read_text(encoding="utf-8"))
+
+
+def _channels() -> dict[str, Any]:
+    return json.loads((FIXTURES / "youtube_channels_list.json").read_text(encoding="utf-8"))
+
+
+def test_playlist_items_request_shape() -> None:
+    seen: list[httpx.Request] = []
+    with _client(_playlist(), seen) as c:
+        youtube.fetch_playlist_items("UUaaaaaaaaaaaaaaaaaaaaaa", api_key="AIza-test",
+                                     max_results=15, client=c)
+    q = dict(seen[0].url.params)
+    assert seen[0].url.path == "/youtube/v3/playlistItems"
+    assert "snippet" in q["part"] and "contentDetails" in q["part"]
+    assert q["playlistId"] == "UUaaaaaaaaaaaaaaaaaaaaaa"
+    assert q["maxResults"] == "15"
+    assert q["key"] == "AIza-test"
+
+
+def test_playlist_items_cost_one_unit() -> None:
+    """search.list 는 100 units 다. 재생목록은 몇 건을 받든 1 unit 이다."""
+    with _client(_playlist()) as c:
+        got = youtube.fetch_playlist_items("UUaaaaaaaaaaaaaaaaaaaaaa", api_key="k",
+                                           max_results=50, client=c)
+    assert youtube.used_today() == youtube.PLAYLIST_ITEMS_UNIT_COST == 1
+    assert len(got) >= 4
+
+
+def test_max_results_is_clamped_to_the_api_limit() -> None:
+    seen: list[httpx.Request] = []
+    with _client(_playlist(), seen) as c:
+        youtube.fetch_playlist_items("UUaaaaaaaaaaaaaaaaaaaaaa", api_key="k",
+                                     max_results=500, client=c)
+    assert dict(seen[0].url.params)["maxResults"] == str(youtube.MAX_PLAYLIST_RESULTS)
+
+
+def test_private_and_deleted_items_are_skipped_not_fatal() -> None:
+    """재생목록에 남는 껍데기다. 상류 변화가 아니라 정상 상태다."""
+    with _client(_playlist()) as c:
+        got = youtube.fetch_playlist_items("UUaaaaaaaaaaaaaaaaaaaaaa", api_key="k", client=c)
+    assert "fFFFFFFFFF6" not in {g["id"] for g in got}
+
+
+def test_missing_resource_id_is_an_upstream_change() -> None:
+    body = _playlist()
+    del body["items"][0]["snippet"]["resourceId"]
+    with _client(body) as c:
+        with pytest.raises(youtube.YoutubeUpstreamChanged):
+            youtube.fetch_playlist_items("UUaaaaaaaaaaaaaaaaaaaaaa", api_key="k", client=c)
+
+
+def test_playlist_id_must_be_an_uploads_playlist() -> None:
+    with _client(_playlist()) as c:
+        with pytest.raises(ValueError):
+            youtube.fetch_playlist_items("PLnotanuploadsplaylist", api_key="k", client=c)
+
+
+def test_upload_time_comes_from_content_details() -> None:
+    """snippet.publishedAt 은 '재생목록에 추가된 시각' 이라 다른 값이다."""
+    body = _playlist()
+    body["items"][0]["snippet"]["publishedAt"] = "2020-01-01T00:00:00Z"
+    with _client(body) as c:
+        got = youtube.fetch_playlist_items("UUaaaaaaaaaaaaaaaaaaaaaa", api_key="k", client=c)
+    assert got[0]["published_at"] == "2026-09-13"
+
+
+# --------------------------------------------------------------------------- KST 변환
+
+def test_utc_timestamp_becomes_a_kst_date() -> None:
+    """회귀 고정: [:10] 으로 자르면 하루가 틀린다.
+
+    "2026-09-16T15:30:00Z" 는 KST 로 9월 17일이다. 경기 날짜(KST)와 맞대어 보는
+    값이라 이 하루가 그대로 오탈락이 된다.
+    """
+    from datetime import date as _date
+
+    assert youtube.to_kst_date("2026-09-16T15:30:00Z") == _date(2026, 9, 17)
+    assert youtube.to_kst_date("2026-09-16T14:30:00Z") == _date(2026, 9, 16)
+    assert youtube.to_kst_date("") is None
+    assert youtube.to_kst_date("엉뚱한 값") is None
+
+
+def test_video_details_publish_date_is_kst() -> None:
+    body = _payload()
+    body["items"][0]["snippet"]["publishedAt"] = "2026-09-13T15:30:00Z"
+    with _client(body) as c:
+        got = youtube.fetch_video_details(["aAAAAAAAAA1"], api_key="k", client=c)
+    assert got["aAAAAAAAAA1"]["published_at"] == "2026-09-14"
+    assert got["aAAAAAAAAA1"]["published_at_utc"] == "2026-09-13T15:30:00Z"
+
+
+# --------------------------------------------------------------------------- 채널 해석
+
+def test_uploads_id_is_the_channel_id_with_uu() -> None:
+    """YouTube 가 보장하는 규칙이라 channels.list 없이 얻는다(0 units)."""
+    assert youtube.uploads_playlist_id("UCKp8knO8a6tSI1oaLjfd9XA") == "UUKp8knO8a6tSI1oaLjfd9XA"
+    assert youtube.uploads_playlist_id("") is None
+    assert youtube.uploads_playlist_id("UUalreadyuploads1234567") is None
+
+
+def test_resolve_channel_reads_related_playlists() -> None:
+    seen: list[httpx.Request] = []
+    with _client(_channels(), seen) as c:
+        got = youtube.resolve_channel(api_key="AIza-test", handle="@lgtwinstv", client=c)
+    q = dict(seen[0].url.params)
+    assert seen[0].url.path == "/youtube/v3/channels"
+    assert q["forHandle"] == "@lgtwinstv"
+    assert got["uploads_playlist_id"] == "UUaaaaaaaaaaaaaaaaaaaaaa"
+    assert youtube.used_today() == youtube.CHANNELS_UNIT_COST == 1
+
+
+def test_resolve_channel_adds_the_at_sign() -> None:
+    seen: list[httpx.Request] = []
+    with _client(_channels(), seen) as c:
+        youtube.resolve_channel(api_key="k", handle="lgtwinstv", client=c)
+    assert dict(seen[0].url.params)["forHandle"] == "@lgtwinstv"
+
+
+def test_unknown_handle_is_a_source_error_not_an_upstream_change() -> None:
+    """핸들 오타 하나가 '상류가 바뀌었다' 로 올라오면 안 된다."""
+    with _client({"kind": "youtube#channelListResponse", "pageInfo": {"totalResults": 0}}) as c:
+        with pytest.raises(youtube.YoutubeSourceError):
+            youtube.resolve_channel(api_key="k", handle="@nope", client=c)
+
+
+def test_resolve_channel_needs_an_identifier() -> None:
+    with pytest.raises(ValueError):
+        youtube.resolve_channel(api_key="k")
+
+
+def test_budget_blocks_before_the_request_goes_out() -> None:
+    seen: list[httpx.Request] = []
+    with _client(_playlist(), seen) as c:
+        with pytest.raises(youtube.YoutubeQuotaExceeded):
+            youtube.fetch_playlist_items("UUaaaaaaaaaaaaaaaaaaaaaa", api_key="k",
+                                         client=c, budget=0)
+    assert seen == []

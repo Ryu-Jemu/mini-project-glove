@@ -1,0 +1,127 @@
+{
+  "kind": "youtube#playlistItemListResponse",
+  "etag": "fixture",
+  "items": [
+    {
+      "kind": "youtube#playlistItem",
+      "etag": "fixture",
+      "snippet": {
+        "publishedAt": "2026-09-13T13:20:11Z",
+        "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+        "title": "[2026 KBO 리그 H/L] LG vs 삼성 (09.13)",
+        "position": 0,
+        "resourceId": {
+          "kind": "youtube#video",
+          "videoId": "aAAAAAAAAA1"
+        },
+        "channelTitle": "LG 트윈스",
+        "videoOwnerChannelTitle": "LG 트윈스"
+      },
+      "contentDetails": {
+        "videoId": "aAAAAAAAAA1",
+        "videoPublishedAt": "2026-09-13T13:20:11Z"
+      }
+    },
+    {
+      "kind": "youtube#playlistItem",
+      "etag": "fixture",
+      "snippet": {
+        "publishedAt": "2026-09-13T14:00:00Z",
+        "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+        "title": "9.13 삼성전 주요장면",
+        "position": 1,
+        "resourceId": {
+          "kind": "youtube#video",
+          "videoId": "bBBBBBBBBB2"
+        },
+        "channelTitle": "LG 트윈스",
+        "videoOwnerChannelTitle": "LG 트윈스"
+      },
+      "contentDetails": {
+        "videoId": "bBBBBBBBBB2",
+        "videoPublishedAt": "2026-09-13T14:00:00Z"
+      }
+    },
+    {
+      "kind": "youtube#playlistItem",
+      "etag": "fixture",
+      "snippet": {
+        "publishedAt": "2026-09-13T01:00:00Z",
+        "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+        "title": "[LG트윈스] 9.13 경기 예고",
+        "position": 2,
+        "resourceId": {
+          "kind": "youtube#video",
+          "videoId": "cCCCCCCCCC3"
+        },
+        "channelTitle": "LG 트윈스",
+        "videoOwnerChannelTitle": "LG 트윈스"
+      },
+      "contentDetails": {
+        "videoId": "cCCCCCCCCC3",
+        "videoPublishedAt": "2026-09-13T01:00:00Z"
+      }
+    },
+    {
+      "kind": "youtube#playlistItem",
+      "etag": "fixture",
+      "snippet": {
+        "publishedAt": "2026-09-13T15:00:00Z",
+        "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+        "title": "오지환 인터뷰 9.13",
+        "position": 3,
+        "resourceId": {
+          "kind": "youtube#video",
+          "videoId": "dDDDDDDDDD4"
+        },
+        "channelTitle": "LG 트윈스",
+        "videoOwnerChannelTitle": "LG 트윈스"
+      },
+      "contentDetails": {
+        "videoId": "dDDDDDDDDD4",
+        "videoPublishedAt": "2026-09-13T15:00:00Z"
+      }
+    },
+    {
+      "kind": "youtube#playlistItem",
+      "etag": "fixture",
+      "snippet": {
+        "publishedAt": "2026-09-12T15:30:00Z",
+        "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+        "title": "LG vs 삼성 하이라이트",
+        "position": 4,
+        "resourceId": {
+          "kind": "youtube#video",
+          "videoId": "eEEEEEEEEE5"
+        },
+        "channelTitle": "LG 트윈스",
+        "videoOwnerChannelTitle": "LG 트윈스"
+      },
+      "contentDetails": {
+        "videoId": "eEEEEEEEEE5",
+        "videoPublishedAt": "2026-09-12T15:30:00Z"
+      }
+    },
+    {
+      "kind": "youtube#playlistItem",
+      "etag": "fixture",
+      "snippet": {
+        "publishedAt": "2026-09-11T00:00:00Z",
+        "title": "Private video",
+        "resourceId": {
+          "kind": "youtube#video",
+          "videoId": "fFFFFFFFFF6"
+        },
+        "channelTitle": "LG 트윈스"
+      },
+      "contentDetails": {
+        "videoId": "fFFFFFFFFF6",
+        "videoPublishedAt": "2026-09-11T00:00:00Z"
+      }
+    }
+  ],
+  "pageInfo": {
+    "totalResults": 6,
+    "resultsPerPage": 6
+  }
+}

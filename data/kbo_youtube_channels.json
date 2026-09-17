@@ -1,0 +1,20 @@
+{
+  "as_of": "2026-09-17",
+  "source": "YouTube Data API v3 channels.list",
+  "note": "channel_id 가 비어 있으면 운영 중 channels.list(1 unit)로 한 번 해석해 assistant_cache 에 30일 담아 둔다. `python -m baseball.highlights resolve` 로 전부 확인한 뒤 여기에 박아 두면 해석 호출이 0 이 된다. uploads_playlist_id 는 channel_id 의 UC 를 UU 로 바꾼 값이라 따로 적지 않는다.",
+  "league_code": "KBO",
+  "channels": [
+    {"code": "KBO", "title": "KBO", "handle": "@KBO1982", "username": null, "channel_id": null, "verified_at": null,
+     "why": "전 경기 하이라이트를 '[원정 vs 홈] M.D(요일) 야구 하이라이트｜2026 KBO 리그' 형식으로 올린다. 구단 채널이 전부 어긋나도 이 채널 하나면 회수가 선다."},
+    {"code": "LG", "title": "LG 트윈스", "handle": "@lgtwinstv", "username": null, "channel_id": null, "verified_at": null},
+    {"code": "OB", "title": "두산 베어스", "handle": "@doosanbearsofficial", "username": null, "channel_id": null, "verified_at": null},
+    {"code": "WO", "title": "키움 히어로즈", "handle": "@heroesbaseballclub", "username": null, "channel_id": null, "verified_at": null},
+    {"code": "SK", "title": "SSG 랜더스", "handle": "@SSGLANDERS", "username": null, "channel_id": null, "verified_at": null},
+    {"code": "KT", "title": "kt wiz", "handle": "@ktwiztv", "username": "ktwiztv", "channel_id": null, "verified_at": null},
+    {"code": "HH", "title": "한화 이글스", "handle": "@HanwhaEagles_official", "username": null, "channel_id": null, "verified_at": null},
+    {"code": "SS", "title": "삼성 라이온즈", "handle": "@samsunglionstv", "username": null, "channel_id": null, "verified_at": null},
+    {"code": "LT", "title": "롯데 자이언츠", "handle": "@giantstv", "username": null, "channel_id": null, "verified_at": null},
+    {"code": "HT", "title": "KIA 타이거즈", "handle": "@kiatigers", "username": "kiabaseballclub", "channel_id": "UCKp8knO8a6tSI1oaLjfd9XA", "verified_at": null},
+    {"code": "NC", "title": "NC 다이노스", "handle": "@ncdinos", "username": "ncdinos", "channel_id": null, "verified_at": null}
+  ]
+}

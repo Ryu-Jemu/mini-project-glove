@@ -151,6 +151,19 @@ class Settings(BaseSettings):
     # YouTube ToS: 저장한 API 데이터는 30일 내 갱신하거나 지워야 한다. 7일이면 넉넉히 만족한다.
     youtube_cache_ttl_seconds: int = 604800
     highlight_max_videos: int = 4
+    # 하루 예산. youtube.spend() 가 요청 전에 막는다. 프로세스 단위 카운터라
+    # 워커가 여럿이면 합산되지 않는다 — 실질 방어는 캐시 쪽이다. tunable
+    youtube_daily_unit_budget: int = 8000
+    # 업로드 재생목록 한 페이지에서 받을 영상 수. 구단 채널은 하루 3~6건을 올리므로
+    # 15건이면 이틀치를 덮는다. 회수가 낮으면 여기부터 올린다. tunable
+    youtube_uploads_max_results: int = 15
+    # 재생목록 캐시. 채널 단위라 같은 날 여러 경기 질문이 한 번의 조회를 나눠 쓴다.
+    # 경기 종료 몇 시간 뒤에 올라오는 하이라이트를 30분 안에 잡는다. tunable
+    youtube_uploads_ttl_seconds: int = 1800
+    # 0건일 때의 TTL. 7일을 쓰면 "아직 안 올라왔다" 가 일주일 동안 "없다" 가 된다. tunable
+    youtube_negative_ttl_seconds: int = 900
+    # 핸들 -> 채널 id 해석 결과. 값이 사실상 불변이라 길게 둔다(ToS 30일 안).
+    youtube_channel_ttl_seconds: int = 2592000
 
     @property
     def kbo_data_enabled(self) -> bool:
@@ -182,8 +195,14 @@ class Settings(BaseSettings):
 
     @property
     def highlights_enabled(self) -> bool:
-        """하이라이트는 Tavily 로 찾고 YouTube API 로 검증한다. 둘 다 필요하다."""
-        return (self.enable_highlights == "on" and self.web_search_enabled
+        """하이라이트는 구단·리그 공식 채널의 업로드 재생목록에서 찾는다.
+
+        예전에는 발견을 Tavily 가 맡아 web_search_enabled 까지 요구했다. 그런데
+        일반 웹 검색 상위 5건에 youtube.com 주소가 섞이는 것은 운이라 사실상
+        아무것도 못 찾았다. 발견이 YouTube Data API 로 옮겨간 지금은 YouTube 키
+        하나면 충분하다. Tavily 는 재생목록이 비었을 때의 폴백으로만 남는다.
+        """
+        return (self.enable_highlights == "on"
                 and self.youtube_kbo_api_key is not None)
 
     @property

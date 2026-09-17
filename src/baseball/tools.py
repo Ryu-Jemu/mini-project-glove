@@ -287,9 +287,10 @@ def find_game_highlight(query: str) -> tuple[str, dict[str, Any]]:
         return (f"{_when(game.game_date)} 경기는 아직 열리지 않아 하이라이트가 없습니다.",
                 {"sources": []})
 
+    # 구단 코드를 함께 넘긴다 — 발견이 그 구단의 유튜브 채널을 고르는 데 쓴다.
     entries, media = highlights.find(
         game_date=game.game_date, home_name=game.home_name, away_name=game.away_name,
-        settings=settings)
+        home_code=game.home_code, away_code=game.away_code, settings=settings)
     if not entries:
         return (f"{_game_line(game, relation)} 경기의 YouTube 하이라이트를 찾지 못했습니다. "
                 f"찾지 못했다는 사실을 그대로 알리고, 없는 영상을 지어내지 마세요.",
