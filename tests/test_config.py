@@ -67,9 +67,16 @@ def test_inline_comment_on_an_empty_key_is_not_a_key() -> None:
 
 
 def test_real_keys_still_pass() -> None:
+    """빈 값과 주석만 걸러내고 채워진 값은 통과해야 한다.
+
+    값은 일부러 키처럼 보이지 않게 둔다. `AIza` + 35 자 리터럴은 내용이
+    더미여도 GitHub 시크릿 스캐너의 google_api_key 패턴에 그대로 걸려
+    공개 저장소에 경보가 뜬다. 밸리데이터는 형식을 보지 않으므로
+    (`_blank_key_is_absent`) 비지 않은 문자열이면 검증 목적은 같다.
+    """
     from baseball.config import Settings
 
     s = Settings(_env_file=None, enable_places_map="on",
-                 google_maps_embed_api_key="AIzaSyDUMMYDUMMYDUMMYDUMMYDUMMYDUMMYDUM")
+                 google_maps_embed_api_key="not-a-real-key-for-tests-only")
     assert s.google_maps_embed_api_key is not None
     assert s.places_map_enabled is True
